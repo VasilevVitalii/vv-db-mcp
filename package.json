@@ -1,0 +1,28 @@
+{
+  "name": "vv-db-mcp",
+  "version": "0.0.1",
+  "description": "MCP server - work with MSSQL, Oracle, PostgreSQL, Firebird",
+  "keywords": [
+    "MCP",
+    "database",
+    "MSSQL",
+    "Oracle",
+    "PostreSQL",
+    "Firebird"
+  ],
+  "homepage": "https://github.com/VasilevVitalii/vv-db-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/VasilevVitalii/vv-db-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VasilevVitalii/vv-db-mcp.git"
+  },
+  "license": "MIT",
+  "author": "Vitalii Vasilev",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
