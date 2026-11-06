@@ -165,11 +165,16 @@ export const oraCatalog: CatalogAdapter = {
   async listForeignKeys(db, o) {
     const filters: string[] = []
     const params: TDbParam[] = []
-    if (o.schema !== undefined) {
+    if (o.schema !== undefined && o.table !== undefined) {
+      // Пара сторон: иначе FK для A.X вернёт и FK между B.X и A.Y (кросс-схемное ложное срабатывание).
+      filters.push(
+        '((UPPER(con.owner) = UPPER(:schema) AND UPPER(con.table_name) = UPPER(:table_name)) OR (UPPER(rcon.owner) = UPPER(:schema) AND UPPER(rcon.table_name) = UPPER(:table_name)))',
+      )
+      params.push(p('schema', o.schema), p('table_name', o.table))
+    } else if (o.schema !== undefined) {
       filters.push('(UPPER(con.owner) = UPPER(:schema) OR UPPER(rcon.owner) = UPPER(:schema))')
       params.push(p('schema', o.schema))
-    }
-    if (o.table !== undefined) {
+    } else if (o.table !== undefined) {
       filters.push('(UPPER(con.table_name) = UPPER(:table_name) OR UPPER(rcon.table_name) = UPPER(:table_name))')
       params.push(p('table_name', o.table))
     }
@@ -311,7 +316,7 @@ export const oraCatalog: CatalogAdapter = {
     if (want === undefined || want === 'check') {
       const rows = await queryRows(
         db,
-        `SELECT con.constraint_name AS name, con.search_condition AS expression
+        `SELECT con.constraint_name AS name, con.search_condition AS expression, con.generated AS generated
          FROM all_constraints con
          WHERE (UPPER(con.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(con.table_name) = UPPER(:table_name) AND con.constraint_type = 'C'
          ORDER BY con.constraint_name`,
@@ -320,7 +325,9 @@ export const oraCatalog: CatalogAdapter = {
       )
       for (const r of rows) {
         const expr = S(r, 'expression') ?? ''
-        if (/^\s*"?[A-Z0-9_$#]+"?\s+IS\s+NOT\s+NULL\s*$/i.test(expr)) continue
+        // Отбрасываем только автоматически сгенерированные Oracle NOT NULL-чеки;
+        // пользовательский CHECK "COL IS NOT NULL" (generated = 'USER NAME') сохраняем.
+        if (S(r, 'generated') === 'GENERATED NAME' && /^\s*"?[A-Z0-9_$#]+"?\s+IS\s+NOT\s+NULL\s*$/i.test(expr)) continue
         out.push({ name: S(r, 'name')!, type: 'check', columns: [], expression: S(r, 'expression') })
       }
     }

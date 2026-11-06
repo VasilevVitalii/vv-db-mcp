@@ -298,7 +298,7 @@ export const listIndexesTool = defineTool({
   title: 'list_indexes',
   description:
     'Индексы таблицы. Индексы, обслуживающие ограничения, включаются с признаками unique/primary. ' +
-    'INCLUDE-столбцы MSSQL и частичные условия PostgreSQL в контракт не входят.',
+    'INCLUDE-столбцы (MSSQL, PostgreSQL) и частичные условия PostgreSQL в контракт не входят.',
   input: z.strictObject({
     connection: connSchema,
     table: z.string().min(1),
@@ -401,7 +401,7 @@ export const listTriggersTool = defineTool({
   name: 'list_triggers',
   title: 'list_triggers',
   description:
-    'Триггеры таблиц и представлений (триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before).',
+    'Триггеры таблиц и представлений (в MSSQL — только таблиц; триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before).',
   input: z.strictObject({
     connection: connSchema,
     schema: schemaParamSchema.optional(),
@@ -568,6 +568,7 @@ export const sampleRowsTool = defineTool({
       }
     }
     const cap = capLimit(entry, limit) // min(limit, server maxRowsCap) — как в прочих листингах
+    // cap + 1: лишняя строка нужна только для вычисления truncated и отбрасывается из результата.
     const sql = cat.buildSampleSql({
       schema: resolved.schema,
       table: resolved.name,

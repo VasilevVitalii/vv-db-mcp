@@ -296,9 +296,10 @@ export const fbCatalog: CatalogAdapter = {
       queryRows(
         db,
         `SELECT idx.RDB$INDEX_NAME AS name, idx.RDB$UNIQUE_FLAG AS unique_flag,
+                idx.RDB$INDEX_TYPE AS index_type,
                 iseg.RDB$FIELD_NAME AS column_name
          FROM RDB$INDICES idx
-         JOIN RDB$INDEX_SEGMENTS iseg ON iseg.RDB$INDEX_NAME = idx.RDB$INDEX_NAME
+         LEFT JOIN RDB$INDEX_SEGMENTS iseg ON iseg.RDB$INDEX_NAME = idx.RDB$INDEX_NAME
          WHERE UPPER(idx.RDB$RELATION_NAME) = UPPER(:table)
          ORDER BY idx.RDB$INDEX_NAME, iseg.RDB$FIELD_POSITION`,
         [p('table', o.table)],
@@ -323,7 +324,7 @@ export const fbCatalog: CatalogAdapter = {
         idx = { name, unique: N(r, 'unique_flag') === 1, primary: pkIndexes.has(name), columns: [] }
         map.set(name, idx)
       }
-      idx.columns.push({ name: FS(r, 'column_name'), descending: false })
+      idx.columns.push({ name: FS(r, 'column_name'), descending: N(r, 'index_type') === 1 })
     }
     return [...map.values()]
   },
@@ -361,10 +362,11 @@ export const fbCatalog: CatalogAdapter = {
     if (want === undefined || want === 'check') {
       const rows = await queryRows(
         db,
-        `SELECT cc.RDB$CONSTRAINT_NAME AS name, tr.RDB$TRIGGER_SOURCE AS expression
+        `SELECT cc.RDB$CONSTRAINT_NAME AS name, MAX(tr.RDB$TRIGGER_SOURCE) AS expression
          FROM RDB$CHECK_CONSTRAINTS cc
          JOIN RDB$TRIGGERS tr ON tr.RDB$TRIGGER_NAME = cc.RDB$TRIGGER_NAME
-         WHERE UPPER(tr.RDB$RELATION_NAME) = UPPER(:table)`,
+         WHERE UPPER(tr.RDB$RELATION_NAME) = UPPER(:table)
+         GROUP BY cc.RDB$CONSTRAINT_NAME`,
         [p('table', o.table)],
         o,
       )
@@ -454,11 +456,18 @@ export const fbCatalog: CatalogAdapter = {
         break
       case 'procedure':
         sql = `SELECT p.RDB$PROCEDURE_NAME AS name, p.RDB$PROCEDURE_SOURCE AS definition
-               FROM RDB$PROCEDURES p WHERE UPPER(p.RDB$PROCEDURE_NAME) = UPPER(:name)`
+               FROM RDB$PROCEDURES p
+               WHERE UPPER(p.RDB$PROCEDURE_NAME) = UPPER(:name)
+                 AND p.RDB$PACKAGE_NAME IS NULL
+                 AND (p.RDB$SYSTEM_FLAG IS NULL OR p.RDB$SYSTEM_FLAG = 0)`
         break
       case 'function':
         sql = `SELECT f.RDB$FUNCTION_NAME AS name, f.RDB$FUNCTION_SOURCE AS definition
-               FROM RDB$FUNCTIONS f WHERE UPPER(f.RDB$FUNCTION_NAME) = UPPER(:name)`
+               FROM RDB$FUNCTIONS f
+               WHERE UPPER(f.RDB$FUNCTION_NAME) = UPPER(:name)
+                 AND f.RDB$PACKAGE_NAME IS NULL
+                 AND f.RDB$MODULE_NAME IS NULL
+                 AND (f.RDB$SYSTEM_FLAG IS NULL OR f.RDB$SYSTEM_FLAG = 0)`
         break
       case 'trigger': {
         const tableClause = o.table !== undefined ? 'AND UPPER(t.RDB$RELATION_NAME) = UPPER(:table)' : ''

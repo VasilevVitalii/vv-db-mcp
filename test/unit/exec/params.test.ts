@@ -19,6 +19,20 @@ describe('toDbParams', () => {
     expect((p.value as Buffer).toString('utf8')).toBe('hello')
   })
 
+  it('base64 без паддинга принимается', () => {
+    const [p] = toDbParams([{ name: 'b', value: 'aGVsbG8', as: 'binary_base64' }])
+    expect((p.value as Buffer).toString('utf8')).toBe('hello')
+  })
+
+  it('url-safe base64 (-_ → +/) принимается', () => {
+    const [p] = toDbParams([{ name: 'b', value: '___', as: 'binary_base64' }])
+    expect(Buffer.isBuffer(p.value)).toBe(true)
+  })
+
+  it('base64 длины 4k+1 отвергается', () => {
+    expect(() => toDbParams([{ name: 'b', value: 'a', as: 'binary_base64' }])).toThrow()
+  })
+
   it('без as — value прозрачно', () => {
     const [p] = toDbParams([{ name: 'x', value: 42 }])
     expect(p.value).toBe(42)

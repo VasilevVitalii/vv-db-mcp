@@ -201,11 +201,14 @@ export const pgCatalog: CatalogAdapter = {
   async listForeignKeys(db, o) {
     const filters: string[] = []
     const params: TDbParam[] = []
-    if (o.schema !== undefined) {
+    if (o.schema !== undefined && o.table !== undefined) {
+      // Пара сторон: иначе FK для A.X вернёт и FK между B.X и A.Y (кросс-схемное ложное срабатывание).
+      filters.push('((n1.nspname = :schema AND c1.relname = :table) OR (n2.nspname = :schema AND c2.relname = :table))')
+      params.push(p('schema', o.schema), p('table', o.table))
+    } else if (o.schema !== undefined) {
       filters.push('(n1.nspname = :schema OR n2.nspname = :schema)')
       params.push(p('schema', o.schema))
-    }
-    if (o.table !== undefined) {
+    } else if (o.table !== undefined) {
       filters.push('(c1.relname = :table OR c2.relname = :table)')
       params.push(p('table', o.table))
     }
@@ -291,7 +294,7 @@ export const pgCatalog: CatalogAdapter = {
        JOIN pg_namespace n ON n.oid = t.relnamespace
        CROSS JOIN LATERAL unnest(ix.indkey::int2[], ix.indoption::int2[]) WITH ORDINALITY AS u(attnum, opt, ord)
        LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = u.attnum
-       WHERE t.relname = :table AND n.nspname = :schema
+       WHERE t.relname = :table AND n.nspname = :schema AND u.ord <= ix.indnkeyatts
        ORDER BY i.relname, u.ord`,
       [p('table', o.table), p('schema', schema)],
       o,
@@ -455,7 +458,7 @@ export const pgCatalog: CatalogAdapter = {
     let sql: string
     const params: TDbParam[] = [p('name', o.name)]
     if (o.schema !== undefined) params.push(p('schema', o.schema))
-    const schemaClause = o.schema !== undefined ? 'AND n.nspname = :schema' : ''
+    const schemaClause = o.schema !== undefined ? 'AND n.nspname = :schema' : `AND ${NON_SYSTEM}`
 
     switch (o.objectType) {
       case 'view':

@@ -177,11 +177,14 @@ export const mssqlCatalog: CatalogAdapter = {
   async listForeignKeys(db, o) {
     const filters: string[] = []
     const params: TDbParam[] = []
-    if (o.schema !== undefined) {
+    if (o.schema !== undefined && o.table !== undefined) {
+      // Пара сторон: иначе FK для A.X вернёт и FK между B.X и A.Y (кросс-схемное ложное срабатывание).
+      filters.push('((s1.name = :schema AND t1.name = :table) OR (s2.name = :schema AND t2.name = :table))')
+      params.push(p('schema', o.schema), p('table', o.table))
+    } else if (o.schema !== undefined) {
       filters.push('(s1.name = :schema OR s2.name = :schema)')
       params.push(p('schema', o.schema))
-    }
-    if (o.table !== undefined) {
+    } else if (o.table !== undefined) {
       filters.push('(t1.name = :table OR t2.name = :table)')
       params.push(p('table', o.table))
     }
@@ -355,7 +358,7 @@ export const mssqlCatalog: CatalogAdapter = {
       `SELECT s.name AS schema_name, o.name AS name, o.type AS type
        FROM sys.objects o
        JOIN sys.schemas s ON s.schema_id = o.schema_id
-       WHERE 1=1 ${kindClause} ${schemaClause}`,
+       WHERE 1=1 ${kindClause} ${schemaClause} AND o.is_ms_shipped = 0`,
       o.schema !== undefined ? [p('schema', o.schema)] : [],
       o,
     )
@@ -457,7 +460,7 @@ export const mssqlCatalog: CatalogAdapter = {
       trigger: "o.type = 'TR'",
     }
     const tableClause = o.objectType === 'trigger' && o.table !== undefined ? 'AND t.name = :table' : ''
-    const schemaClause = o.schema !== undefined ? 'AND s.name = :schema' : ''
+    const schemaClause = o.schema !== undefined ? 'AND s.name = :schema' : `AND ${NON_SYSTEM}`
     const params: TDbParam[] = [p('name', o.name)]
     if (o.schema !== undefined) params.push(p('schema', o.schema))
     if (o.objectType === 'trigger' && o.table !== undefined) params.push(p('table', o.table))

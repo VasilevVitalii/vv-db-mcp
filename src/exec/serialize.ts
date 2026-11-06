@@ -46,6 +46,30 @@ export function serializeValue(
     if (bytes > keep) st.truncatedBinary++
     return { $base64: base64, bytes, truncated: bytes > keep }
   }
+  if (v instanceof Map) {
+    if (seen.has(v)) return '[Circular]'
+    seen.add(v)
+    try {
+      const out: Record<string, unknown> = {}
+      for (const [k, val] of v) out[String(k)] = serializeValue(val, opts, st, seen)
+      return out
+    } finally {
+      seen.delete(v)
+    }
+  }
+  if (v instanceof Set) {
+    if (seen.has(v)) return '[Circular]'
+    seen.add(v)
+    try {
+      return [...v].map((x) => serializeValue(x, opts, st, seen))
+    } finally {
+      seen.delete(v)
+    }
+  }
+  if (typeof v === 'object' && v !== null && typeof (v as { toJSON?: unknown }).toJSON === 'function') {
+    // Decimal-подобные типы драйверов: сериализуем через toJSON, а не дамп внутренних полей.
+    return serializeValue((v as { toJSON: () => unknown }).toJSON(), opts, st, seen)
+  }
   if (Array.isArray(v)) {
     if (seen.has(v)) return '[Circular]'
     seen.add(v)

@@ -68,6 +68,28 @@ describe('serializeValue', () => {
     const out = serializeValue({ a: 1n, b: null }, opts, new SerializeState())
     expect(out).toEqual({ a: '1', b: null })
   })
+
+  it('Map → объект', () => {
+    const out = serializeValue(new Map([['a', 1n], ['b', 'x']]), opts, new SerializeState())
+    expect(out).toEqual({ a: '1', b: 'x' })
+  })
+
+  it('Set → массив', () => {
+    const out = serializeValue(new Set([1n, 'x']), opts, new SerializeState())
+    expect(out).toEqual(['1', 'x'])
+  })
+
+  it('объект с toJSON — сериализуется через него', () => {
+    const v = { toJSON: () => 'decoded' }
+    expect(serializeValue(v, opts, new SerializeState())).toBe('decoded')
+  })
+
+  it('циклическая ссылка → [Circular]', () => {
+    const a: Record<string, unknown> = {}
+    a.self = a
+    const out = serializeValue(a, opts, new SerializeState()) as Record<string, unknown>
+    expect(out.self).toBe('[Circular]')
+  })
 })
 
 describe('serializeRow', () => {

@@ -112,7 +112,8 @@ DST_PASSWORD=...
 `destructiveHint: true`. Все инструменты принимают `connection` (имя подключения).
 `timeoutMs` принимают `ping`, `version`, `execute_sql`, `execute_transaction` и
 `sample_rows` (у метаданных-инструментов время ожидания берётся из лимита
-подключения); `maxRows` — `execute_sql`/`execute_transaction`.
+подключения); `maxRows` — `execute_sql`/`execute_transaction`. `sample_rows.limit`
+дополнительно капается `maxRowsCap` подключения (как и прочие листинги).
 
 ## Ошибки
 

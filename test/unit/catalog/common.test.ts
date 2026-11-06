@@ -109,6 +109,7 @@ describe('resolveName', () => {
   })
 
   it('not_found в рамках schema — с указанием схемы в сообщении', () => {
+    expect.assertions(1)
     try {
       resolveName(cands, 'bar', 'other')
     } catch (e) {

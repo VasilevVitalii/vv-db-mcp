@@ -49,10 +49,10 @@ function convertValue(as: 'date' | 'bigint' | 'binary_base64', value: unknown, n
       }
       // Нормализуем url-safe и допускаем отсутствие паддинга; затем строгая проверка алфавита.
       const norm = value.trim().replace(/-/g, '+').replace(/_/g, '/')
-      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4)
-      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(norm)) {
+      if (norm.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(norm)) {
         throw new ServerError('invalid_argument', `параметр "${name}": неверный base64`)
       }
+      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4)
       return Buffer.from(padded, 'base64')
     }
   }
