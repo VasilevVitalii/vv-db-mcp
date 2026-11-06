@@ -218,7 +218,7 @@ export const fbCatalog: CatalogAdapter = {
         db,
         `SELECT rc.RDB$CONSTRAINT_NAME AS name, rc.RDB$RELATION_NAME AS table_name,
                 ref.RDB$RELATION_NAME AS referenced_table,
-                refc.RDB$DELETE_RULE AS delete_rule
+                refc.RDB$DELETE_RULE AS delete_rule, refc.RDB$UPDATE_RULE AS update_rule
          FROM RDB$RELATION_CONSTRAINTS rc
          JOIN RDB$REF_CONSTRAINTS refc ON refc.RDB$CONSTRAINT_NAME = rc.RDB$CONSTRAINT_NAME
          JOIN RDB$RELATION_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME = refc.RDB$CONST_NAME_UQ
@@ -285,7 +285,7 @@ export const fbCatalog: CatalogAdapter = {
         referencedTable: FS(r, 'referenced_table')!,
         referencedColumns: c.referencedColumns,
         onDelete: refAction(FS(r, 'delete_rule')),
-        onUpdate: 'NO ACTION', // Firebird не поддерживает ON UPDATE для FK
+        onUpdate: refAction(FS(r, 'update_rule')),
       })
     }
     return out

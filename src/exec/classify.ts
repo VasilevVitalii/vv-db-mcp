@@ -52,7 +52,10 @@ export function isReadOnlyStatement(sql: string): boolean {
   return READONLY.has(kw)
 }
 
-/** Разбиение батча по `;` вне строковых литералов и комментариев (приближённо). */
+/** Разбиение батча по `;` вне строковых литералов и комментариев (приближённо).
+ *  Не понимает dollar-quoting PG (`$$…;$$`), `q'…'` Oracle и `[…]` MSSQL: `;`
+ *  внутри них разобьёт батч раньше времени. Ошибка направлена в безопасную
+ *  сторону — лишний «пишет»/`outcomeUnknown`, но не пропуск DML. */
 export function splitStatements(sql: string): string[] {
   const parts: string[] = []
   let cur = ''

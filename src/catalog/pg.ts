@@ -462,7 +462,7 @@ export const pgCatalog: CatalogAdapter = {
         sql = `SELECT n.nspname AS schema_name, c.relname AS name, pg_get_viewdef(c.oid, true) AS definition
                FROM pg_class c
                JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE c.relkind IN ('v','m') AND c.relname = :name ${schemaClause}`
+               WHERE c.relkind IN ('v','m') AND UPPER(c.relname) = UPPER(:name) ${schemaClause}`
         break
       case 'procedure':
       case 'function': {
@@ -470,18 +470,18 @@ export const pgCatalog: CatalogAdapter = {
         sql = `SELECT n.nspname AS schema_name, p.proname AS name, pg_get_functiondef(p.oid) AS definition
                FROM pg_proc p
                JOIN pg_namespace n ON n.oid = p.pronamespace
-               WHERE ${kindClause} AND p.proname = :name ${schemaClause}`
+               WHERE ${kindClause} AND UPPER(p.proname) = UPPER(:name) ${schemaClause}`
         break
       }
       case 'trigger': {
-        const tableClause = o.table !== undefined ? 'AND c.relname = :table' : ''
+        const tableClause = o.table !== undefined ? 'AND UPPER(c.relname) = UPPER(:table)' : ''
         if (o.table !== undefined) params.push(p('table', o.table))
         sql = `SELECT n.nspname AS schema_name, t.tgname AS name, c.relname AS table_name,
                       pg_get_triggerdef(t.oid) AS definition
                FROM pg_trigger t
                JOIN pg_class c ON c.oid = t.tgrelid
                JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE NOT t.tgisinternal AND t.tgname = :name ${schemaClause} ${tableClause}`
+               WHERE NOT t.tgisinternal AND UPPER(t.tgname) = UPPER(:name) ${schemaClause} ${tableClause}`
         break
       }
     }

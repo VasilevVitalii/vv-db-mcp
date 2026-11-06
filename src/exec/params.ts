@@ -24,15 +24,21 @@ function convertValue(as: 'date' | 'bigint' | 'binary_base64', value: unknown, n
   }
   switch (as) {
     case 'date': {
-      const d = new Date(value as string | number)
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new ServerError('invalid_argument', `параметр "${name}": as="date" требует строку или число`)
+      }
+      const d = new Date(value)
       if (Number.isNaN(d.getTime())) {
         throw new ServerError('invalid_argument', `параметр "${name}": неверная дата "${String(value)}"`)
       }
       return d
     }
     case 'bigint': {
+      if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint') {
+        throw new ServerError('invalid_argument', `параметр "${name}": as="bigint" требует строку, число или bigint`)
+      }
       try {
-        return BigInt(value as string | number | bigint)
+        return BigInt(value)
       } catch {
         throw new ServerError('invalid_argument', `параметр "${name}": неверное целое "${String(value)}"`)
       }
@@ -41,12 +47,13 @@ function convertValue(as: 'date' | 'bigint' | 'binary_base64', value: unknown, n
       if (typeof value !== 'string') {
         throw new ServerError('invalid_argument', `параметр "${name}": as="binary_base64" требует строку base64`)
       }
-      // Buffer.from не бросает на мусоре — проверяем round-trip.
-      const b = Buffer.from(value, 'base64')
-      if (b.toString('base64') !== value.replace(/\s/g, '')) {
+      // Нормализуем url-safe и допускаем отсутствие паддинга; затем строгая проверка алфавита.
+      const norm = value.trim().replace(/-/g, '+').replace(/_/g, '/')
+      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4)
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(norm)) {
         throw new ServerError('invalid_argument', `параметр "${name}": неверный base64`)
       }
-      return b
+      return Buffer.from(padded, 'base64')
     }
   }
 }

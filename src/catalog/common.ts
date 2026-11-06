@@ -1,6 +1,5 @@
 import type { DbConnection, TDbKind, TDbParam } from 'vv-db-connection'
-import { throwDbError } from '../errors/map.js'
-import { ServerError } from '../errors/map.js'
+import { throwDbError, ServerError } from '../errors/map.js'
 import type { Opts, TypeCategory } from './types.js'
 
 /** Выполняет SELECT каталога и возвращает строки первого набора. */

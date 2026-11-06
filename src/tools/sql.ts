@@ -66,7 +66,7 @@ export const executeTransactionTool = defineTool({
       .array(
         z.strictObject({
           sql: z.string().min(1),
-          params: z.array(paramSchema).optional(),
+          params: z.array(paramSchema).max(1000).optional(),
         }),
       )
       .min(1)

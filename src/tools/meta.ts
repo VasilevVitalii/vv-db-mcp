@@ -401,7 +401,7 @@ export const listTriggersTool = defineTool({
   name: 'list_triggers',
   title: 'list_triggers',
   description:
-    'Триггеры уровня таблицы (триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before).',
+    'Триггеры таблиц и представлений (триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before).',
   input: z.strictObject({
     connection: connSchema,
     schema: schemaParamSchema.optional(),
@@ -421,7 +421,9 @@ export const listTriggersTool = defineTool({
     let table: string | undefined
     let schema: string | undefined = args.schema
     if (args.table !== undefined) {
-      const r = await resolveTableRef(entry, cat, args.table, args.schema, false, signal)
+      // includeViews=true: INSTEAD OF-триггеры на представлениях (Oracle/PG) тоже
+      // находятся по table, иначе resolveTableRef дал бы not_found.
+      const r = await resolveTableRef(entry, cat, args.table, args.schema, true, signal)
       table = r.name
       schema = r.schema ?? undefined
     }
@@ -565,24 +567,25 @@ export const sampleRowsTool = defineTool({
         columns.push(real)
       }
     }
+    const cap = capLimit(entry, limit) // min(limit, server maxRowsCap) — как в прочих листингах
     const sql = cat.buildSampleSql({
       schema: resolved.schema,
       table: resolved.name,
       columns,
-      limit: limit + 1,
+      limit: cap + 1,
     })
     const t = clampTimeout(args.timeoutMs ?? entry.limits.timeoutMs, entry.limits)
     const res = await runSql(entry.db, sql, [], {
       connection: entry.name,
       signal,
       timeoutMs: t,
-      maxRows: limit + 1,
+      maxRows: cap + 1,
       limits: entry.limits,
     })
     const set = res.resultSets[0]
     const rows = set?.rows ?? []
-    const truncated = rows.length > limit
-    const outRows = truncated ? rows.slice(0, limit) : rows
+    const truncated = rows.length > cap
+    const outRows = truncated ? rows.slice(0, cap) : rows
     return {
       ok: true as const,
       schema: resolved.schema,

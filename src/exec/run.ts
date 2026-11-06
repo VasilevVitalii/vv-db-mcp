@@ -176,7 +176,8 @@ export async function runSql(
       }
     } else {
       const outcomeUnknown =
-        (finishError.kind === 'timeout' || finishError.kind === 'aborted') && firstStatementIsWrite(sql)
+        (finishError.kind === 'timeout' || finishError.kind === 'aborted') &&
+        (firstStatementIsWrite(sql) || tailHasWrite(sql))
       throwDbError(finishError, { connection: opts.connection, outcomeUnknown: outcomeUnknown || undefined })
     }
   }

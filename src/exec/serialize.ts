@@ -10,8 +10,14 @@ export class SerializeState {
   truncatedBinary = 0
 }
 
-/** Сериализация одного значения по разделу 4.4 ТЗ. */
-export function serializeValue(v: unknown, opts: SerializeOptions, st: SerializeState): unknown {
+/** Сериализация одного значения по разделу 4.4 ТЗ.
+ *  `seen` защищает от циклических ссылок (иначе рекурсия дала бы переполнение стека). */
+export function serializeValue(
+  v: unknown,
+  opts: SerializeOptions,
+  st: SerializeState,
+  seen: WeakSet<object> = new WeakSet(),
+): unknown {
   if (v === null || v === undefined) return null
   if (typeof v === 'bigint') return v.toString()
   if (typeof v === 'number') {
@@ -40,11 +46,25 @@ export function serializeValue(v: unknown, opts: SerializeOptions, st: Serialize
     if (bytes > keep) st.truncatedBinary++
     return { $base64: base64, bytes, truncated: bytes > keep }
   }
-  if (Array.isArray(v)) return v.map((x) => serializeValue(x, opts, st))
+  if (Array.isArray(v)) {
+    if (seen.has(v)) return '[Circular]'
+    seen.add(v)
+    try {
+      return v.map((x) => serializeValue(x, opts, st, seen))
+    } finally {
+      seen.delete(v)
+    }
+  }
   if (typeof v === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [k, val] of Object.entries(v)) out[k] = serializeValue(val, opts, st)
-    return out
+    if (seen.has(v)) return '[Circular]'
+    seen.add(v)
+    try {
+      const out: Record<string, unknown> = {}
+      for (const [k, val] of Object.entries(v)) out[k] = serializeValue(val, opts, st, seen)
+      return out
+    } finally {
+      seen.delete(v)
+    }
   }
   return v
 }
