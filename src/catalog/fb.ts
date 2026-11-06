@@ -193,7 +193,7 @@ export const fbCatalog: CatalogAdapter = {
       const fieldScale = N(r, 'scale')
       const isChar = dataType === 'char' || dataType === 'varchar'
       return {
-        position: N(r, 'field_position') ?? 0,
+        position: (N(r, 'field_position') ?? 0) + 1,
         name: FS(r, 'name')!,
         dataType,
         typeCategory: cat,
@@ -483,7 +483,10 @@ export const fbCatalog: CatalogAdapter = {
         if (o.table !== undefined) params.push(p('table', o.table))
         sql = `SELECT t.RDB$TRIGGER_NAME AS name, t.RDB$RELATION_NAME AS table_name,
                       t.RDB$TRIGGER_SOURCE AS definition
-               FROM RDB$TRIGGERS t WHERE UPPER(t.RDB$TRIGGER_NAME) = UPPER(:name) ${tableClause}`
+               FROM RDB$TRIGGERS t
+               WHERE UPPER(t.RDB$TRIGGER_NAME) = UPPER(:name)
+                 AND t.RDB$RELATION_NAME IS NOT NULL
+                 AND (t.RDB$SYSTEM_FLAG IS NULL OR t.RDB$SYSTEM_FLAG = 0) ${tableClause}`
         break
       }
     }

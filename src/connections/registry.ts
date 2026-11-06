@@ -11,7 +11,6 @@ export interface Entry {
   user: string
   description?: string
   limits: ResolvedLimits
-  secrets: string[]
 }
 
 export class ConnectionRegistry {
@@ -28,7 +27,6 @@ export class ConnectionRegistry {
       user: c.user,
       description: c.description,
       limits: c.limits,
-      secrets: c.secrets,
     }))
     this.secrets = maskSecrets
   }

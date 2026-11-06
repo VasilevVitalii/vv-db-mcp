@@ -194,12 +194,13 @@ export async function runSql(
   }
 }
 
-function toResultSet(res: TDbRes, limits: ResolvedLimits, st: SerializeState): ResultSet {
+function toResultSet(res: TDbRes, limits: ResolvedLimits, st: SerializeState, maxRows?: number): ResultSet {
+  const rows = maxRows !== undefined ? res.rows.slice(0, maxRows) : res.rows
   const set: ResultSet = {
     columns: res.schema.map(toColumn),
-    rows: res.rows.map((r) => serializeRow(r, serializeOpts(limits), st)),
+    rows: rows.map((r) => serializeRow(r, serializeOpts(limits), st)),
     rowCount: 0,
-    truncated: false,
+    truncated: maxRows !== undefined && res.rows.length > maxRows,
   }
   set.rowCount = set.rows.length
   if (res.rowsAffected !== undefined) set.rowsAffected = res.rowsAffected
@@ -238,10 +239,11 @@ export async function runTx(
       for (let i = 0; i < prepared.length; i++) {
         currentIndex = i
         const stmt = prepared[i]
-        // При отмене (timeout/клиент) exec() сам бросает структурированный
-        // abortError (kind 'aborted'/'timeout'), который computeTxOutcome верно
-        // классифицирует как неоднозначный исход; бросать здесь bare Error нельзя —
-        // драйвер пометил бы его kind 'tx' и отмена потеряла бы признак.
+        // При отмене (timeout/клиент) exec() бросает структурированный abortError.
+        // computeTxOutcome помечает исход неоднозначным только в реально неоднозначных
+        // случаях (aborted, COMMIT_TIMEOUT, потеря связи при commit); обычный timeout до
+        // COMMIT означает гарантированный ROLLBACK и остаётся определённым. Бросать здесь
+        // bare Error нельзя — драйвер пометил бы его kind 'tx' и отмена потеряла бы признак.
         const r = await exec(stmt.sql, stmt.params)
         const rows = r.rows.slice(0, opts.maxRows).map((row) => serializeRow(row, serializeOpts(opts.limits), st))
         const item: TxStatementResult = {
@@ -253,7 +255,7 @@ export async function runTx(
         if (r.rowsAffected !== undefined) item.rowsAffected = r.rowsAffected
         if (r.outParams !== undefined) item.outParams = serializeRow(r.outParams, serializeOpts(opts.limits), st)
         if (r.implicitResults && r.implicitResults.length > 0) {
-          item.implicitResults = r.implicitResults.map((res) => toResultSet(res, opts.limits, st))
+          item.implicitResults = r.implicitResults.map((res) => toResultSet(res, opts.limits, st, opts.maxRows))
         }
         out.push(item)
       }

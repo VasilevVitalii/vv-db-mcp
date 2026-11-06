@@ -97,7 +97,7 @@ DST_PASSWORD=...
 | `execute_sql` | Выполнение SQL (SELECT/DML/DDL) с параметрами `:name`. |
 | `execute_transaction` | Набор SQL-операторов в одной транзакции (commit/rollback). |
 | `list_schemas` | Схемы базы. |
-| `list_tables` / `list_views` | Таблицы / представления с необязательным фильтром по имени. |
+| `list_tables` / `list_views` | Таблицы / представления с необязательным фильтром по имени (материализованные — только PostgreSQL). |
 | `describe_table` | Колонки, типы, ПК, комментарии. |
 | `list_foreign_keys` | Внешние ключи. |
 | `list_indexes` | Индексы (включая уникальные и составные). |

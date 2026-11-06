@@ -188,6 +188,7 @@ export const oraCatalog: CatalogAdapter = {
                 rcon.owner AS referenced_schema, rcon.table_name AS referenced_table,
                 con.delete_rule AS on_delete
          FROM all_constraints con
+         JOIN all_users u ON u.username = con.owner AND u.oracle_maintained = 'N'
          JOIN all_constraints rcon ON rcon.owner = con.r_owner AND rcon.constraint_name = con.r_constraint_name
          WHERE con.constraint_type = 'R' ${where}`,
         params,
@@ -198,6 +199,7 @@ export const oraCatalog: CatalogAdapter = {
         `SELECT con.constraint_name AS name, con.owner AS schema_name, con.table_name AS table_name,
                 cc.column_name AS column_name, rcc.column_name AS referenced_column
          FROM all_constraints con
+         JOIN all_users u ON u.username = con.owner AND u.oracle_maintained = 'N'
          JOIN all_constraints rcon ON rcon.owner = con.r_owner AND rcon.constraint_name = con.r_constraint_name
          JOIN all_cons_columns cc ON cc.owner = con.owner AND cc.constraint_name = con.constraint_name
          JOIN all_cons_columns rcc

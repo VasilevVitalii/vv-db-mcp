@@ -188,7 +188,7 @@ function listRelationTool(opts: { name: 'list_tables' | 'list_views'; field: 'ta
     description:
       opts.name === 'list_tables'
         ? 'Базовые таблицы подключения (системные и материализованные объекты исключены). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.'
-        : 'Представления подключения (системные исключены; в PostgreSQL также материализованные). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.',
+        : 'Представления подключения (системные исключены; в PostgreSQL также материализованные; материализованные представления Oracle не включены). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.',
     input: listRelationInput,
     output: z.object({
       ok: z.literal(true),

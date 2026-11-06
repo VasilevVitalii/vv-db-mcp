@@ -71,7 +71,14 @@ export function serializeValue(
   }
   if (typeof v === 'object' && v !== null && typeof (v as { toJSON?: unknown }).toJSON === 'function') {
     // Decimal-подобные типы драйверов: сериализуем через toJSON, а не дамп внутренних полей.
-    return serializeValue((v as { toJSON: () => unknown }).toJSON(), opts, st, seen)
+    // seen-проверка до вызова: toJSON() может вернуть this (защита от зацикливания).
+    if (seen.has(v)) return '[Circular]'
+    seen.add(v)
+    try {
+      return serializeValue((v as { toJSON: () => unknown }).toJSON(), opts, st, seen)
+    } finally {
+      seen.delete(v)
+    }
   }
   if (Array.isArray(v)) {
     if (seen.has(v)) return '[Circular]'

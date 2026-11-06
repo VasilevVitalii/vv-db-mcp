@@ -59,7 +59,8 @@ export const executeTransactionTool = defineTool({
   description:
     'Выполняет последовательность операторов в одной транзакции (BEGIN → операторы → COMMIT, при ошибке — ROLLBACK). ' +
     'Атомарность «всё или ничего» гарантируется для DML без явного управления транзакцией в тексте SQL. ' +
-    'DDL в Oracle неявно коммитит (включая ранее несохранённые изменения); Firebird работает в READ COMMITTED; SET NOCOUNT ON в MSSQL скрывает rowsAffected.',
+    'DDL в Oracle неявно коммитит (включая ранее несохранённые изменения); Firebird работает в READ COMMITTED; SET NOCOUNT ON в MSSQL скрывает rowsAffected. ' +
+    'timeoutMs — общий лимит на всю транзакцию (в отличие от execute_sql, где это таймаут молчания); неявные наборы результатов (implicitResults) обрезаются тем же maxRows.',
   input: z.strictObject({
     connection: connSchema,
     statements: z
