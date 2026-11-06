@@ -36,7 +36,7 @@ interface SubstituteCtx {
   connIndex: number
 }
 
-function substituteString(s: string, ctx: SubstituteCtx, fieldName: string): string {
+function substituteString(s: string, ctx: SubstituteCtx, _fieldName: string): string {
   let result = ''
   let i = 0
   let changed = false
@@ -65,15 +65,6 @@ function substituteString(s: string, ctx: SubstituteCtx, fieldName: string): str
         throw new ConfigError([`ключ секрета не найден: ${key}`])
       }
       result += value
-      if (fieldName === 'password') {
-        ctx.maskSecrets.add(value)
-        let set = ctx.connSecrets.get(ctx.connIndex)
-        if (!set) {
-          set = new Set()
-          ctx.connSecrets.set(ctx.connIndex, set)
-        }
-        set.add(value)
-      }
       i = end + 1
       changed = true
       continue
@@ -88,7 +79,19 @@ function substitute(node: unknown, ctx: SubstituteCtx, fieldName: string): unkno
   if (typeof node === 'string') {
     // в name и kind подстановка не выполняется (раздел 3.4 ТЗ)
     if (fieldName === 'name' || fieldName === 'kind') return node
-    return substituteString(node, ctx, fieldName)
+    const res = substituteString(node, ctx, fieldName)
+    // Пароль маскируется целиком — и подставленный (${KEY}), и литеральный:
+    // маскер не должен зависеть от способа записи секрета в конфиг.
+    if (fieldName === 'password') {
+      ctx.maskSecrets.add(res)
+      let set = ctx.connSecrets.get(ctx.connIndex)
+      if (!set) {
+        set = new Set()
+        ctx.connSecrets.set(ctx.connIndex, set)
+      }
+      set.add(res)
+    }
+    return res
   }
   if (Array.isArray(node)) {
     return node.map((v, i) => {
@@ -168,6 +171,19 @@ export async function loadConfig(
 
   const globalLimits = resolveLimits(config.limits)
 
+  // Инварианты лимитов: инверсия (timeoutMs > maxTimeoutMs, maxRows > maxRowsCap)
+  // молча клампилась бы вниз в рантайме — ловим на загрузке.
+  const limitsErrors: string[] = []
+  const checkLimits = (scope: string, l: ResolvedLimits): void => {
+    if (l.timeoutMs > l.maxTimeoutMs) {
+      limitsErrors.push(`${scope}: timeoutMs (${l.timeoutMs}) > maxTimeoutMs (${l.maxTimeoutMs})`)
+    }
+    if (l.maxRows > l.maxRowsCap) {
+      limitsErrors.push(`${scope}: maxRows (${l.maxRows}) > maxRowsCap (${l.maxRowsCap})`)
+    }
+  }
+  checkLimits('limits', globalLimits)
+
   // создание DbConnection (без ввода-вывода); TypeError -> ошибка конфига
   const built: Array<{ c: TConnection; i: number; db: DbConnection }> = []
   config.connections.forEach((c, i) => {
@@ -186,16 +202,22 @@ export async function loadConfig(
 
   if (errors.length > 0) throw new ConfigError(errors)
 
-  const connections: LoadedConnection[] = built.map(({ c, i, db }) => ({
-    name: c.name,
-    kind: c.kind,
-    description: c.description,
-    limits: mergeLimits(globalLimits, c.limits),
-    secrets: [...(ctx.connSecrets.get(i) ?? [])],
-    db,
-    title: db.title(),
-    user: db.user(),
-  }))
+  const connections: LoadedConnection[] = built.map(({ c, i, db }) => {
+    const limits = mergeLimits(globalLimits, c.limits)
+    checkLimits(`connections[${i}].limits`, limits)
+    return {
+      name: c.name,
+      kind: c.kind,
+      description: c.description,
+      limits,
+      secrets: [...(ctx.connSecrets.get(i) ?? [])],
+      db,
+      title: db.title(),
+      user: db.user(),
+    }
+  })
+
+  if (limitsErrors.length > 0) throw new ConfigError(limitsErrors)
 
   return { config, connections, maskSecrets: [...ctx.maskSecrets] }
 }

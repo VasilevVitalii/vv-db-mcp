@@ -41,7 +41,14 @@ describe('loadConfig: подстановка секретов (раздел 3.4)
   it('$${ экранирует литерал — подстановки нет', async () => {
     const r = await loadConfig(tmpFile(pg('$${DB_PASS}')), new Map([['DB_PASS', 's3cret']]))
     expect(r.config.connections[0].password).toBe('${DB_PASS}')
-    expect(r.maskSecrets).toEqual([])
+    expect(r.maskSecrets).toEqual(['${DB_PASS}'])
+  })
+
+  it('литеральный пароль маскируется (без ${KEY})', async () => {
+    const r = await loadConfig(tmpFile(pg('plainpass')), new Map())
+    expect(r.config.connections[0].password).toBe('plainpass')
+    expect(r.maskSecrets).toContain('plainpass')
+    expect(r.connections[0].secrets).toContain('plainpass')
   })
 
   it('подстановка в не-password поле не маскируется', async () => {
@@ -50,7 +57,7 @@ describe('loadConfig: подстановка секретов (раздел 3.4)
     })
     const r = await loadConfig(tmpFile(c), new Map([['D', 'descval']]))
     expect(r.config.connections[0].description).toBe('descval')
-    expect(r.maskSecrets).toEqual([])
+    expect(r.maskSecrets).not.toContain('descval')
   })
 
   it('${KEY} без файла секретов → ConfigError', async () => {

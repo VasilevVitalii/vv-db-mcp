@@ -127,7 +127,8 @@ DST_PASSWORD=...
 
 - **PostgreSQL ≥ 11** — `list_routines` опирается на `pg_proc.prokind`.
 - **Firebird ≥ 3** — `list_routines` опирается на `RDB$PACKAGE_NAME`.
-- MSSQL и Oracle — без дополнительных ограничений по версии.
+- **Oracle ≥ 12c** — `all_users.oracle_maintained` (для исключения системных схем) появился в 12c.
+- MSSQL — без дополнительных ограничений по версии.
 
 ## Разработка
 

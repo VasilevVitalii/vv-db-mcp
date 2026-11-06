@@ -275,12 +275,15 @@ export const listForeignKeysTool = defineTool({
     assertSchemaAllowed(entry.kind, args.schema)
     const cat = getCatalog(entry.kind)
     let table: string | undefined
+    let schema: string | undefined = args.schema
     if (args.table !== undefined) {
-      table = (await resolveTableRef(entry, cat, args.table, args.schema, false, signal)).name
+      const r = await resolveTableRef(entry, cat, args.table, args.schema, false, signal)
+      table = r.name
+      schema = r.schema ?? undefined
     }
     const fks = await cat.listForeignKeys(entry.db, {
       ...catalogOpts(entry, signal),
-      schema: args.schema,
+      schema,
       table,
     })
     const { items, truncated } = applyLimit(sortByName(fks), capLimit(entry, args.limit))
@@ -416,12 +419,15 @@ export const listTriggersTool = defineTool({
     assertSchemaAllowed(entry.kind, args.schema)
     const cat = getCatalog(entry.kind)
     let table: string | undefined
+    let schema: string | undefined = args.schema
     if (args.table !== undefined) {
-      table = (await resolveTableRef(entry, cat, args.table, args.schema, false, signal)).name
+      const r = await resolveTableRef(entry, cat, args.table, args.schema, false, signal)
+      table = r.name
+      schema = r.schema ?? undefined
     }
     const triggers = await cat.listTriggers(entry.db, {
       ...catalogOpts(entry, signal),
-      schema: args.schema,
+      schema,
       table,
     })
     const { items, truncated } = applyLimit(sortByName(triggers), capLimit(entry, args.limit))
@@ -540,20 +546,24 @@ export const sampleRowsTool = defineTool({
     // Имена столбцов берутся из каталога (как обещает описание), а не из ввода:
     // пользовательский список валидируется против реальных столбцов и экранируется
     // только для существующих — опечатка даёт понятную ошибку, а не молчаливый пустой набор.
-    let columns: string[] = []
+    const columns: string[] = []
     if (args.columns !== undefined) {
       const desc = await cat.describeTable(entry.db, {
         ...catalogOpts(entry, signal),
         schema: resolved.schema,
         table: resolved.name,
       })
-      const known = new Set(desc.columns.map((c) => c.name.toLowerCase()))
+      // Валидация регистронезависима, но в SQL уходит каталожное имя (UPPERCASE у
+      // Oracle/Firebird, реальный регистр у mixed-case PG), а не пользовательский
+      // текст — иначе `columns:["id"]` на Oracle дал бы `"id"` и ORA-00904.
+      const byLower = new Map(desc.columns.map((c) => [c.name.toLowerCase(), c.name]))
       for (const col of args.columns) {
-        if (!known.has(col.toLowerCase())) {
+        const real = byLower.get(col.toLowerCase())
+        if (real === undefined) {
           throw new ServerError('invalid_argument', `столбец "${col}" не найден в "${resolved.name}"`)
         }
+        columns.push(real)
       }
-      columns = args.columns
     }
     const sql = cat.buildSampleSql({
       schema: resolved.schema,

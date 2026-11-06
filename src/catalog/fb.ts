@@ -21,12 +21,16 @@ const p = (name: string, value: unknown): TDbParam => ({ name, value })
 const ci = (r: Record<string, unknown>, k: string): unknown => r[k] ?? r[k.toUpperCase()] ?? r[k.toLowerCase()]
 const FS = (r: Record<string, unknown>, k: string): string | null => {
   const v = ci(r, k)
-  return v == null ? null : String(v).trim()
+  return v == null ? null : toText(v)?.trim() ?? null
 }
 const N = (r: Record<string, unknown>, k: string): number | null => {
   const v = ci(r, k)
   return v == null || v === '' ? null : Number(v)
 }
+
+/** DEFAULT_SOURCE хранит префикс `DEFAULT ` — срезаем. */
+const stripDefault = (s: string | null): string | null =>
+  s && /^DEFAULT\s+/i.test(s) ? s.replace(/^DEFAULT\s+/i, '') : s
 
 function toText(v: unknown): string | null {
   if (v == null) return null
@@ -146,8 +150,10 @@ export const fbCatalog: CatalogAdapter = {
         `SELECT rf.RDB$FIELD_POSITION AS field_position, rf.RDB$FIELD_NAME AS name,
                 f.RDB$FIELD_TYPE AS field_type, f.RDB$FIELD_SUB_TYPE AS field_sub_type,
                 f.RDB$CHARACTER_LENGTH AS char_len, f.RDB$FIELD_PRECISION AS field_precision,
-                f.RDB$FIELD_SCALE AS scale, rf.RDB$NULL_FLAG AS null_flag,
-                rf.RDB$DEFAULT_SOURCE AS default_source, rf.RDB$DESCRIPTION AS comment
+                f.RDB$FIELD_SCALE AS scale,
+                COALESCE(rf.RDB$NULL_FLAG, f.RDB$NULL_FLAG) AS null_flag,
+                COALESCE(rf.RDB$DEFAULT_SOURCE, f.RDB$DEFAULT_SOURCE) AS default_source,
+                rf.RDB$DESCRIPTION AS comment
          FROM RDB$RELATION_FIELDS rf
          JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = rf.RDB$FIELD_SOURCE
          WHERE UPPER(rf.RDB$RELATION_NAME) = UPPER(:table)
@@ -185,7 +191,7 @@ export const fbCatalog: CatalogAdapter = {
         precision: cat === 'decimal' ? N(r, 'field_precision') : null,
         scale: cat === 'decimal' && fieldScale != null ? -fieldScale : null,
         nullable: N(r, 'null_flag') === null || N(r, 'null_flag') === 0,
-        defaultValue: FS(r, 'default_source'),
+        defaultValue: stripDefault(FS(r, 'default_source')),
         isPrimaryKey: pkNames.includes(FS(r, 'name')!),
         comment: FS(r, 'comment'),
       }

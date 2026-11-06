@@ -62,7 +62,8 @@ export const oraCatalog: CatalogAdapter = {
        FROM all_tables t
        JOIN all_users u ON u.username = t.owner AND u.oracle_maintained = 'N'
        LEFT JOIN all_tab_comments c ON c.owner = t.owner AND c.table_name = t.table_name
-       WHERE 1=1 ${schemaClause}`,
+       WHERE 1=1 ${schemaClause}
+         AND NOT EXISTS (SELECT 1 FROM all_mviews m WHERE m.owner = t.owner AND m.mview_name = t.table_name)`,
       o.schema !== undefined ? [p('schema', o.schema)] : [],
       o,
     )
@@ -453,20 +454,22 @@ export const oraCatalog: CatalogAdapter = {
           [...params, p('src_type', type)],
           o,
         )
-        const byName = new Map<string, { schema: string | null; lines: string[] }>()
+        const byName = new Map<string, { schema: string | null; name: string; lines: string[] }>()
         for (const r of rows) {
+          const schema = S(r, 'schema_name')
           const name = S(r, 'name')!
-          let e = byName.get(name)
+          const key = `${schema}\u0000${name}`
+          let e = byName.get(key)
           if (!e) {
-            e = { schema: S(r, 'schema_name'), lines: [] }
-            byName.set(name, e)
+            e = { schema, name, lines: [] }
+            byName.set(key, e)
           }
           e.lines.push(S(r, 'text')!)
         }
-        for (const [name, e] of byName) {
+        for (const e of byName.values()) {
           out.push({
             schema: e.schema,
-            name,
+            name: e.name,
             table: null,
             objectType: o.objectType,
             definition: `CREATE OR REPLACE ${e.lines.join('')}`,

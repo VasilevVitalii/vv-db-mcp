@@ -37,10 +37,10 @@ function refAction(code: string | null): ReferentialAction {
   }
 }
 
-/** Имя типа из information_schema: ARRAY/USER-DEFINED → udt_name. */
-function pgDataType(dataType: string, udtName: string | null): string {
+/** Имя типа: ARRAY/USER-DEFINED → читаемое имя из format_type (иначе `_int4` вместо `integer[]`). */
+function pgDataType(dataType: string, udtName: string | null, fmtType: string | null): string {
   const t = dataType.toLowerCase()
-  if (t === 'array' || t === 'user-defined') return (udtName ?? dataType).toLowerCase()
+  if (t === 'array' || t === 'user-defined') return (fmtType ?? udtName ?? dataType).toLowerCase()
   return t
 }
 
@@ -122,6 +122,7 @@ export const pgCatalog: CatalogAdapter = {
                        END
                 END AS data_type,
                 t.typname AS udt_name,
+                format_type(a.atttypid, a.atttypmod) AS fmt_type,
                 information_schema._pg_char_max_length(a.atttypid, a.atttypmod) AS char_len,
                 information_schema._pg_numeric_precision(a.atttypid, a.atttypmod) AS num_precision,
                 information_schema._pg_numeric_scale(a.atttypid, a.atttypmod) AS num_scale,
@@ -169,7 +170,7 @@ export const pgCatalog: CatalogAdapter = {
     for (const r of comments) commentMap.set(String(r.name), S(r, 'comment'))
 
     const columns: ColumnInfo[] = cols.map((r) => {
-      const dataType = pgDataType(String(r.data_type), S(r, 'udt_name'))
+      const dataType = pgDataType(String(r.data_type), S(r, 'udt_name'), S(r, 'fmt_type'))
       const cat = typeCategory('pg', dataType)
       return {
         position: N(r, 'position') ?? 0,
@@ -289,7 +290,7 @@ export const pgCatalog: CatalogAdapter = {
        JOIN pg_class t ON t.oid = ix.indrelid
        JOIN pg_namespace n ON n.oid = t.relnamespace
        CROSS JOIN LATERAL unnest(ix.indkey::int2[], ix.indoption::int2[]) WITH ORDINALITY AS u(attnum, opt, ord)
-       JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = u.attnum
+       LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = u.attnum
        WHERE t.relname = :table AND n.nspname = :schema
        ORDER BY i.relname, u.ord`,
       [p('table', o.table), p('schema', schema)],

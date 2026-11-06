@@ -118,8 +118,11 @@ async function main(): Promise<void> {
   })
   process.on('uncaughtException', (err) => {
     log.error(`uncaughtException: ${fmt(err)}`)
-    process.exit(1)
+    void registry.closeAll().finally(() => process.exit(1))
   })
 }
 
-void main()
+void main().catch((e) => {
+  process.stderr.write(`${maskSecrets(String(e instanceof Error ? e.stack ?? e.message : e))}\n`)
+  process.exit(1)
+})
