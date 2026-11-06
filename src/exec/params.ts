@@ -47,12 +47,13 @@ function convertValue(as: 'date' | 'bigint' | 'binary_base64', value: unknown, n
       if (typeof value !== 'string') {
         throw new ServerError('invalid_argument', `параметр "${name}": as="binary_base64" требует строку base64`)
       }
-      // Нормализуем url-safe и допускаем отсутствие паддинга; затем строгая проверка алфавита.
+      // Нормализуем url-safe и допускаем отсутствие паддинга; валидируем уже
+      // дополненную строку, чтобы отсечь остаточные случаи «a=» / «==».
       const norm = value.trim().replace(/-/g, '+').replace(/_/g, '/')
-      if (norm.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(norm)) {
+      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4)
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(padded)) {
         throw new ServerError('invalid_argument', `параметр "${name}": неверный base64`)
       }
-      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4)
       return Buffer.from(padded, 'base64')
     }
   }

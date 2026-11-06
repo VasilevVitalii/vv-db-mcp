@@ -504,7 +504,8 @@ export const getDefinitionTool = defineTool({
       table: args.table,
     })
     if (defs.length === 0) {
-      throw new ServerError('not_found', `объект "${args.name}" не найден`)
+      const qual = args.schema !== undefined ? `${args.schema}.${args.name}` : args.name
+      throw new ServerError('not_found', `${args.objectType} "${qual}" не найден`)
     }
     return { ok: true as const, definitions: defs }
   },

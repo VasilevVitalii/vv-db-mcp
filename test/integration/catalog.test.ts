@@ -5,6 +5,7 @@ import {
   connectAvailable,
   createFixture,
   dropFixture,
+  hasKind,
   hasName,
   KINDS,
   PARENT,
@@ -47,7 +48,7 @@ describe.skipIf(!connectAvailable())('интеграционные: катало
     const schema = () => DEFAULT_SCHEMA[kind]
     const opts = () => ({ timeoutMs: 30000, connection: kind })
 
-    describe(kind, () => {
+    describe.skipIf(!hasKind(kind))(kind, () => {
       it('list_schemas', async () => {
         const schemas = await cat().listSchemas(db(), opts())
         if (kind === 'fb') {

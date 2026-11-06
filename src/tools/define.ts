@@ -57,6 +57,6 @@ export function clampTimeout(ms: number, limits: ResolvedLimits): number {
 }
 
 /** Ограничение maxRows потолком maxRowsCap. */
-export function clampMaxRows(ms: number, limits: ResolvedLimits): number {
-  return Math.min(Math.max(1, ms), limits.maxRowsCap)
+export function clampMaxRows(n: number, limits: ResolvedLimits): number {
+  return Math.min(Math.max(1, n), limits.maxRowsCap)
 }

@@ -49,6 +49,12 @@ export function isReadOnlyStatement(sql: string): boolean {
     // Data-modifying CTE (INSERT/UPDATE/DELETE/MERGE после WITH-клаузы) пишет.
     return !/\b(INSERT|UPDATE|DELETE|MERGE)\b/i.test(s)
   }
+  if (kw === 'EXPLAIN') {
+    // `EXPLAIN ANALYZE <DML>` в PostgreSQL реально выполняет оператор записи.
+    const analyze = /\bANALY[ZS]E\b/i.test(s)
+    const dml = /\b(INSERT|UPDATE|DELETE|MERGE)\b/i.test(s)
+    return !(analyze && dml)
+  }
   return READONLY.has(kw)
 }
 

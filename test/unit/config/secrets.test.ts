@@ -29,4 +29,8 @@ describe('parseSecrets', () => {
   it('CRLF-переводы строк', () => {
     expect(parseSecrets('A=1\r\nB=2')).toEqual(new Map([['A', '1'], ['B', '2']]))
   })
+
+  it('BOM в начале отсекается', () => {
+    expect(parseSecrets('\uFEFFA=1')).toEqual(new Map([['A', '1']]))
+  })
 })

@@ -118,7 +118,14 @@ async function main(): Promise<void> {
   })
   process.on('uncaughtException', (err) => {
     log.error(`uncaughtException: ${fmt(err)}`)
-    void registry.closeAll().finally(() => process.exit(1))
+    const timer = setTimeout(() => {
+      log.warn('закрытие подключений не уложилось в 5 с — принудительный выход')
+      process.exit(1)
+    }, 5000)
+    void registry.closeAll().finally(() => {
+      clearTimeout(timer)
+      process.exit(1)
+    })
   })
 }
 

@@ -64,7 +64,13 @@ function fbDataType(fieldType: number | null, subType: number | null): string {
     case 23:
       return 'boolean'
     case 26:
+      if (subType === 1) return 'numeric'
+      if (subType === 2) return 'decimal'
       return 'int128'
+    case 28:
+      return 'time with time zone'
+    case 29:
+      return 'timestamp with time zone'
     case 24:
       return 'decfloat16'
     case 25:
@@ -362,11 +368,10 @@ export const fbCatalog: CatalogAdapter = {
     if (want === undefined || want === 'check') {
       const rows = await queryRows(
         db,
-        `SELECT cc.RDB$CONSTRAINT_NAME AS name, MAX(tr.RDB$TRIGGER_SOURCE) AS expression
+        `SELECT cc.RDB$CONSTRAINT_NAME AS name, tr.RDB$TRIGGER_SOURCE AS expression
          FROM RDB$CHECK_CONSTRAINTS cc
          JOIN RDB$TRIGGERS tr ON tr.RDB$TRIGGER_NAME = cc.RDB$TRIGGER_NAME
-         WHERE UPPER(tr.RDB$RELATION_NAME) = UPPER(:table)
-         GROUP BY cc.RDB$CONSTRAINT_NAME`,
+         WHERE UPPER(tr.RDB$RELATION_NAME) = UPPER(:table) AND tr.RDB$TRIGGER_TYPE = 1`,
         [p('table', o.table)],
         o,
       )

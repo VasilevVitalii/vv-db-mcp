@@ -6,6 +6,7 @@ import {
   connectAvailable,
   createFixture,
   dropFixture,
+  hasKind,
   KINDS,
   PARENT,
   CHILD,
@@ -37,7 +38,7 @@ describe.skipIf(!connectAvailable())('интеграционные: execute_sql 
     const db = () => entry()!.db
     const opts = () => ({ timeoutMs: 30000, maxRows: 100, limits: entry()!.limits, connection: kind })
 
-    describe(kind, () => {
+    describe.skipIf(!hasKind(kind))(kind, () => {
       it('DML с rowsAffected', async () => {
         const r = await runSql(db(), `INSERT INTO ${PARENT}(id, name) VALUES (:id, :name)`, [
           { name: 'id', value: 1 },

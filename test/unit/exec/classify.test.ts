@@ -24,6 +24,15 @@ describe('isReadOnlyStatement', () => {
     expect(isReadOnlyStatement('/* c */ SELECT 1')).toBe(true)
   })
 
+  it('EXPLAIN → true (только план)', () => {
+    expect(isReadOnlyStatement('EXPLAIN SELECT * FROM t')).toBe(true)
+  })
+
+  it('EXPLAIN ANALYZE DML → false (реально выполняет)', () => {
+    expect(isReadOnlyStatement('EXPLAIN ANALYZE DELETE FROM t')).toBe(false)
+    expect(isReadOnlyStatement('EXPLAIN ANALYZE UPDATE t SET a = 1')).toBe(false)
+  })
+
   it('INSERT → false', () => {
     expect(isReadOnlyStatement('INSERT INTO t VALUES (1)')).toBe(false)
   })

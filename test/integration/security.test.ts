@@ -16,7 +16,7 @@ describe.skipIf(!connectAvailable())('интеграционные: безопа
     await h.registry.closeAll()
   })
 
-  it('недоступное подключение даёт ошибку без утечки пароля', async () => {
+  it.skipIf(!hasKind('pg'))('недоступное подключение даёт ошибку без утечки пароля', async () => {
     const bad = new DbConnection({
       kind: 'pg',
       host: '127.0.0.1',
@@ -36,7 +36,7 @@ describe.skipIf(!connectAvailable())('интеграционные: безопа
     }
   }, 15000)
 
-  it('пароли не попадают в текст ошибки и list_connections', async () => {
+  it.skipIf(!hasKind('pg'))('пароли не попадают в текст ошибки и list_connections', async () => {
     const passwords = h.passwords
     expect(passwords.length).toBeGreaterThan(0)
 
