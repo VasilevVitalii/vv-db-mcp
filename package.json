@@ -7,7 +7,7 @@
     "database",
     "MSSQL",
     "Oracle",
-    "PostreSQL",
+    "PostgreSQL",
     "Firebird"
   ],
   "homepage": "https://github.com/VasilevVitalii/vv-db-mcp#readme",
@@ -20,9 +20,43 @@
   },
   "license": "MIT",
   "author": "Vitalii Vasilev",
-  "type": "commonjs",
-  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "vv-db-mcp": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "lint": "biome lint src test",
+    "test": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:all": "vitest run",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "mssql": "^12.7.14",
+    "node-firebird": "^2.19.1",
+    "oracledb": "^26.0.0",
+    "pg": "^8.23.1",
+    "vv-db-connection": "^1.1.29",
+    "zod": "^4.6.7"
+  },
+  "allowScripts": {
+    "oracledb@26.0.0": true
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^26.6.6",
+    "@types/oracledb": "^26.0.1",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }

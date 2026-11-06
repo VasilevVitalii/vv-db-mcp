@@ -1,0 +1,45 @@
+{
+  "limits": { "maxRows": 500 },
+  "connections": [
+    {
+      "name": "src",
+      "kind": "mssql",
+      "description": "исходная база",
+      "server": "10.0.0.5",
+      "database": "fansy",
+      "auth": { "kind": "mssql", "user": "reader", "password": "${SRC_PASSWORD}" },
+      "trustServerCertificate": true,
+      "connectTimeout": 10000
+    },
+    {
+      "name": "dst",
+      "kind": "pg",
+      "description": "приёмная база",
+      "host": "10.0.0.6",
+      "database": "qort",
+      "user": "writer",
+      "password": "${DST_PASSWORD}",
+      "ssl": true
+    },
+    {
+      "name": "ora1",
+      "kind": "ora",
+      "description": "Oracle PDB",
+      "host": "10.0.0.7",
+      "service": "ORCLPDB1",
+      "user": "app",
+      "password": "${ORA_PASSWORD}",
+      "poolMax": 4
+    },
+    {
+      "name": "fb1",
+      "kind": "fb",
+      "description": "Firebird (режим string для BIGINT)",
+      "host": "10.0.0.8",
+      "database": "/data/app.fdb",
+      "user": "SYSDBA",
+      "password": "${FB_PASSWORD}",
+      "numericMode": "string"
+    }
+  ]
+}
