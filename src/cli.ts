@@ -118,6 +118,8 @@ async function main(): Promise<void> {
   })
   process.on('uncaughtException', (err) => {
     log.error(`uncaughtException: ${fmt(err)}`)
+    if (shuttingDown) return
+    shuttingDown = true
     const timer = setTimeout(() => {
       log.warn('закрытие подключений не уложилось в 5 с — принудительный выход')
       process.exit(1)

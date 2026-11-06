@@ -1,7 +1,7 @@
-import type { DbConnection, TDbError, TDbRes } from 'vv-db-connection'
+import type { DbConnection, TDbError, TDbParam, TDbRes } from 'vv-db-connection'
 import type { ResolvedLimits } from '../config/schema.js'
 import type { Column, Param, ResultSet } from '../tools/schemas.js'
-import { throwDbError } from '../errors/map.js'
+import { throwDbError, ServerError } from '../errors/map.js'
 import { toDbParams } from './params.js'
 import { SerializeState, serializeRow } from './serialize.js'
 import { linkSignals } from './abort.js'
@@ -216,17 +216,33 @@ export async function runTx(
   const warnings: string[] = []
   let currentIndex = -1
 
+  // Параметры преобразуем до открытия транзакции: ошибка валидации (дата, base64,
+  // bigint) должна вернуться как invalid_argument со своим statementIndex, а не
+  // всплыть внутри колбэка драйвера, где она переупаковывается в 'tx' и теряет
+  // признак неверного аргумента (BEGIN при этом открывается и откатывается впустую).
+  const prepared: Array<{ sql: string; params: TDbParam[] }> = []
+  for (let i = 0; i < statements.length; i++) {
+    try {
+      prepared.push({ sql: statements[i].sql, params: toDbParams(statements[i].params) })
+    } catch (e) {
+      if (e instanceof ServerError && e.kind === 'invalid_argument') {
+        throw new ServerError(e.kind, e.message, { statementIndex: i })
+      }
+      throw e
+    }
+  }
+
   const result = await db.execTxDynamic(
     async (exec, _signal) => {
       const out: TxStatementResult[] = []
-      for (let i = 0; i < statements.length; i++) {
+      for (let i = 0; i < prepared.length; i++) {
         currentIndex = i
-        const stmt = statements[i]
+        const stmt = prepared[i]
         // При отмене (timeout/клиент) exec() сам бросает структурированный
         // abortError (kind 'aborted'/'timeout'), который computeTxOutcome верно
         // классифицирует как неоднозначный исход; бросать здесь bare Error нельзя —
         // драйвер пометил бы его kind 'tx' и отмена потеряла бы признак.
-        const r = await exec(stmt.sql, toDbParams(stmt.params))
+        const r = await exec(stmt.sql, stmt.params)
         const rows = r.rows.slice(0, opts.maxRows).map((row) => serializeRow(row, serializeOpts(opts.limits), st))
         const item: TxStatementResult = {
           index: i,

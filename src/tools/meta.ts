@@ -220,7 +220,7 @@ export const describeTableTool = defineTool({
   title: 'describe_table',
   description:
     'Структура таблицы или представления: столбцы (позиция, тип, категория typeCategory, длина, точность, шкала, nullable, default, признак ПК, комментарий) и первичный ключ. ' +
-    'typeCategory — единая классификация типов для переноса данных между СУБД (приложение B).',
+    'typeCategory — единая классификация типов для переноса данных между СУБД (приложение B); массивы PostgreSQL классифицируются по типу элемента, а в dataType сохраняется суффикс [].',
   input: z.strictObject({
     connection: connSchema,
     table: z.string().min(1),

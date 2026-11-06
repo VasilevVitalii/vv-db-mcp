@@ -146,7 +146,7 @@ export const pgCatalog: CatalogAdapter = {
          JOIN pg_namespace n ON n.oid = c.relnamespace
          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
          WHERE c.relname = :table AND n.nspname = :schema AND i.indisprimary
-         ORDER BY array_position(i.indkey, a.attnum)`,
+         ORDER BY array_position(i.indkey::int2[], a.attnum)`,
         [p('table', o.table), p('schema', schema)],
         o,
       ),

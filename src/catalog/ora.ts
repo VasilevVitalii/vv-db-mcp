@@ -63,6 +63,7 @@ export const oraCatalog: CatalogAdapter = {
        JOIN all_users u ON u.username = t.owner AND u.oracle_maintained = 'N'
        LEFT JOIN all_tab_comments c ON c.owner = t.owner AND c.table_name = t.table_name
        WHERE 1=1 ${schemaClause}
+         AND t.dropped = 'NO'
          AND NOT EXISTS (SELECT 1 FROM all_mviews m WHERE m.owner = t.owner AND m.mview_name = t.table_name)`,
       o.schema !== undefined ? [p('schema', o.schema)] : [],
       o,
@@ -145,7 +146,7 @@ export const oraCatalog: CatalogAdapter = {
         precision: cat === 'decimal' ? N(r, 'num_precision') : null,
         scale: cat === 'decimal' ? scale : null,
         nullable: S(r, 'nullable')!.toUpperCase() === 'Y',
-        defaultValue: S(r, 'default_value'),
+        defaultValue: S(r, 'default_value')?.trimEnd() ?? null,
         isPrimaryKey: pkNames.includes(S(r, 'name')!),
         comment: S(r, 'obj_comment'),
       }

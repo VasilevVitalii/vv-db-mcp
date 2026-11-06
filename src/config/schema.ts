@@ -102,7 +102,7 @@ const oraConn = z.strictObject({
   connectTimeout: connectTimeoutSchema.optional(),
   queueTimeout: connectTimeoutSchema.optional(),
   poolMin: z.number().int().min(0).optional(),
-  poolMax: z.number().int().min(0).optional(),
+  poolMax: z.number().int().min(1).optional(),
   poolIncrement: z.number().int().min(0).optional(),
 })
 

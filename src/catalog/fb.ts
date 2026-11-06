@@ -82,22 +82,26 @@ function fbDataType(fieldType: number | null, subType: number | null): string {
   }
 }
 
-/** Полная карта DML-типов Firebird 3.0+ (одиночные и multi-action). */
-const FB_TRIGGER: Record<number, { timing: 'before' | 'after'; events: Array<'insert' | 'update' | 'delete'> }> = {
-  1: { timing: 'before', events: ['insert'] },
-  2: { timing: 'after', events: ['insert'] },
-  3: { timing: 'before', events: ['update'] },
-  4: { timing: 'after', events: ['update'] },
-  5: { timing: 'before', events: ['delete'] },
-  6: { timing: 'after', events: ['delete'] },
-  17: { timing: 'before', events: ['insert', 'update'] },
-  18: { timing: 'after', events: ['insert', 'update'] },
-  25: { timing: 'before', events: ['insert', 'delete'] },
-  26: { timing: 'after', events: ['insert', 'delete'] },
-  27: { timing: 'before', events: ['update', 'delete'] },
-  28: { timing: 'after', events: ['update', 'delete'] },
-  113: { timing: 'before', events: ['insert', 'update', 'delete'] },
-  114: { timing: 'after', events: ['insert', 'update', 'delete'] },
+/**
+ * Декодирует RDB$TRIGGER_TYPE по битовой схеме Firebird 3.0+ (universal_triggers.txt):
+ * бит 0 — BEFORE(0)/AFTER(1), далее три слота событий по 2 бита (1=INSERT, 2=UPDATE,
+ * 3=DELETE); значение = битовое поле − 1. Кодирование зависит от порядка событий
+ * в DDL (BEFORE UPDATE OR INSERT ≠ BEFORE INSERT OR UPDATE), поэтому таблица не
+ * покрывает все комбинации — декодируем по формуле.
+ */
+function fbTrigger(type: number): { timing: 'before' | 'after'; events: Array<'insert' | 'update' | 'delete'> } {
+  const v = type + 1
+  const timing: 'before' | 'after' = (v & 1) === 0 ? 'before' : 'after'
+  const ev = (slot: number): 'insert' | 'update' | 'delete' | null =>
+    slot === 1 ? 'insert' : slot === 2 ? 'update' : slot === 3 ? 'delete' : null
+  const events = [
+    ...new Set(
+      [ev((v >> 1) & 3), ev((v >> 3) & 3), ev((v >> 5) & 3)].filter(
+        (x): x is 'insert' | 'update' | 'delete' => x !== null,
+      ),
+    ),
+  ]
+  return { timing, events }
 }
 
 function refAction(rule: string | null): ReferentialAction {
@@ -425,7 +429,7 @@ export const fbCatalog: CatalogAdapter = {
     const out: TriggerInfo[] = []
     for (const r of rows) {
       const t = N(r, 'trigger_type') ?? 0
-      const spec = FB_TRIGGER[t] ?? { timing: 'after' as const, events: [] as Array<'insert' | 'update' | 'delete'> }
+      const spec = fbTrigger(t)
       out.push({
         schema: null,
         name: FS(r, 'name')!,

@@ -118,7 +118,7 @@ function mssqlCategory(t: string): TypeCategory {
 }
 
 function pgCategory(t: string): TypeCategory {
-  const base = t.replace(/\[\]$/, '')
+  const base = t.replace(/\[\]$/, '').replace(/\(\d+(,\d+)?\)/, '')
   if (['smallint', 'integer', 'bigint'].includes(base)) return 'integer'
   if (['numeric', 'money'].includes(base)) return 'decimal'
   if (['real', 'double precision'].includes(base)) return 'float'
@@ -146,12 +146,12 @@ function oraCategory(t: string, scale?: number | null): TypeCategory {
 function fbCategory(t: string): TypeCategory {
   if (['smallint', 'integer', 'bigint', 'int128'].includes(t)) return 'integer'
   if (['numeric', 'decimal'].includes(t)) return 'decimal'
-  if (['float', 'double precision'].includes(t)) return 'float'
+  if (['float', 'double precision', 'decfloat16', 'decfloat34'].includes(t)) return 'float'
   if (['char', 'varchar', 'blob sub_type text'].includes(t)) return 'string'
   if (t === 'blob sub_type binary') return 'binary'
   if (t === 'boolean') return 'boolean'
   if (t === 'date') return 'date'
-  if (t === 'time') return 'time'
-  if (t === 'timestamp') return 'timestamp'
+  if (['time', 'time with time zone'].includes(t)) return 'time'
+  if (['timestamp', 'timestamp with time zone'].includes(t)) return 'timestamp'
   return 'other'
 }

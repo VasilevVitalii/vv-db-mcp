@@ -30,7 +30,10 @@ export function serializeValue(
   if (typeof v === 'string') {
     if (v.length > opts.maxCellChars) {
       st.truncatedCells++
-      return v.slice(0, opts.maxCellChars)
+      // Обрезка по UTF-16 code units может разрезать суррогатную пару (эмодзи и т.п.)
+      // — убираем «хвостовой» высокий суррогат, чтобы не выдать битый символ.
+      const cut = v.slice(0, opts.maxCellChars)
+      return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut
     }
     return v
   }
