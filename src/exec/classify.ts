@@ -39,7 +39,17 @@ export function isReadOnlyStatement(sql: string): boolean {
   const s = stripLeading(sql)
   const m = /^[A-Za-z]+/.exec(s)
   if (!m) return true // пусто / только комментарии — не пишет
-  return READONLY.has(m[0].toUpperCase())
+  const kw = m[0].toUpperCase()
+  if (kw === 'SELECT') {
+    // `SELECT … INTO` пишет (создаёт/заполняет таблицу). Ложное «пишет» при
+    // литерале 'INTO' безопасно: эвристика склоняется к пишущему исходу.
+    return !/\bINTO\b/i.test(s)
+  }
+  if (kw === 'WITH') {
+    // Data-modifying CTE (INSERT/UPDATE/DELETE/MERGE после WITH-клаузы) пишет.
+    return !/\b(INSERT|UPDATE|DELETE|MERGE)\b/i.test(s)
+  }
+  return READONLY.has(kw)
 }
 
 /** Разбиение батча по `;` вне строковых литералов и комментариев (приближённо). */

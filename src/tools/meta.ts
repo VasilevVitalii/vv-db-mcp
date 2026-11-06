@@ -143,6 +143,11 @@ function filterSortLimit<T extends { schema: string | null; name: string }>(
 
 const catalogOpts = (entry: Entry, signal: AbortSignal) => ({ signal, timeoutMs: entry.limits.timeoutMs })
 
+/** Потолок листинга: серверный maxRowsCap капает клиентский limit. */
+function capLimit(entry: Entry, limit: number): number {
+  return Math.min(limit, entry.limits.maxRowsCap)
+}
+
 // --- 6.6 list_schemas ---
 
 export const listSchemasTool = defineTool({
@@ -150,7 +155,7 @@ export const listSchemasTool = defineTool({
   title: 'list_schemas',
   description:
     'Схемы подключения (несистемные): MSSQL schema, PostgreSQL schema, Oracle owner. ' +
-    'Опущено — все несистемные. На Firebird схем нет: возвращается пустой список и warnings ["Firebird не имеет схем"].',
+    'Возвращаются все несистемные схемы. На Firebird схем нет: возвращается пустой список и warnings ["Firebird не имеет схем"].',
   input: z.strictObject({ connection: connSchema }),
   output: z.object({
     ok: z.literal(true),
@@ -183,7 +188,7 @@ function listRelationTool(opts: { name: 'list_tables' | 'list_views'; field: 'ta
     description:
       opts.name === 'list_tables'
         ? 'Базовые таблицы подключения (системные и материализованные объекты исключены). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.'
-        : 'Представления подключения (системные и материализованные объекты исключены). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.',
+        : 'Представления подключения (системные исключены; в PostgreSQL также материализованные). Сортировка по schema, затем name; nameContains — регистронезависимая подстрока.',
     input: listRelationInput,
     output: z.object({
       ok: z.literal(true),
@@ -199,7 +204,7 @@ function listRelationTool(opts: { name: 'list_tables' | 'list_views'; field: 'ta
         ...catalogOpts(entry, signal),
         schema: args.schema,
       })
-      const { items, truncated } = filterSortLimit(refs, args.nameContains, args.limit)
+      const { items, truncated } = filterSortLimit(refs, args.nameContains, capLimit(entry, args.limit))
       return { ok: true as const, truncated, [opts.field]: items }
     },
   })
@@ -278,7 +283,7 @@ export const listForeignKeysTool = defineTool({
       schema: args.schema,
       table,
     })
-    const { items, truncated } = applyLimit(sortByName(fks), args.limit)
+    const { items, truncated } = applyLimit(sortByName(fks), capLimit(entry, args.limit))
     return { ok: true as const, truncated, foreignKeys: items }
   },
 })
@@ -382,7 +387,7 @@ export const listRoutinesTool = defineTool({
       schema: args.schema,
       kind: args.kind,
     })
-    const { items, truncated } = filterSortLimit(routines, args.nameContains, args.limit)
+    const { items, truncated } = filterSortLimit(routines, args.nameContains, capLimit(entry, args.limit))
     return { ok: true as const, truncated, routines: items }
   },
 })
@@ -419,7 +424,7 @@ export const listTriggersTool = defineTool({
       schema: args.schema,
       table,
     })
-    const { items, truncated } = applyLimit(sortByName(triggers), args.limit)
+    const { items, truncated } = applyLimit(sortByName(triggers), capLimit(entry, args.limit))
     return { ok: true as const, truncated, triggers: items }
   },
 })
@@ -451,7 +456,7 @@ export const listSequencesTool = defineTool({
       ...catalogOpts(entry, signal),
       schema: args.schema,
     })
-    const { items, truncated } = filterSortLimit(sequences, args.nameContains, args.limit)
+    const { items, truncated } = filterSortLimit(sequences, args.nameContains, capLimit(entry, args.limit))
     return { ok: true as const, truncated, sequences: items }
   },
 })
@@ -532,10 +537,28 @@ export const sampleRowsTool = defineTool({
     const cat = getCatalog(entry.kind)
     const resolved = await resolveTableRef(entry, cat, args.table, args.schema, true, signal)
     const limit = args.limit
+    // Имена столбцов берутся из каталога (как обещает описание), а не из ввода:
+    // пользовательский список валидируется против реальных столбцов и экранируется
+    // только для существующих — опечатка даёт понятную ошибку, а не молчаливый пустой набор.
+    let columns: string[] = []
+    if (args.columns !== undefined) {
+      const desc = await cat.describeTable(entry.db, {
+        ...catalogOpts(entry, signal),
+        schema: resolved.schema,
+        table: resolved.name,
+      })
+      const known = new Set(desc.columns.map((c) => c.name.toLowerCase()))
+      for (const col of args.columns) {
+        if (!known.has(col.toLowerCase())) {
+          throw new ServerError('invalid_argument', `столбец "${col}" не найден в "${resolved.name}"`)
+        }
+      }
+      columns = args.columns
+    }
     const sql = cat.buildSampleSql({
       schema: resolved.schema,
       table: resolved.name,
-      columns: args.columns ?? [],
+      columns,
       limit: limit + 1,
     })
     const t = clampTimeout(args.timeoutMs ?? entry.limits.timeoutMs, entry.limits)

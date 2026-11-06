@@ -34,7 +34,13 @@ export class ConnectionRegistry {
   }
 
   get(name: string): Entry {
-    const found = this.entries.find((e) => e.name === name)
+    let found = this.entries.find((e) => e.name === name)
+    if (!found) {
+      // Регистронезависимый fallback для удобства: 'prod' находит 'Prod'.
+      // При нескольких ci-совпадениях не угадываем — остаётся unknown_connection.
+      const ci = this.entries.filter((e) => e.name.toLowerCase() === name.toLowerCase())
+      if (ci.length === 1) found = ci[0]
+    }
     if (!found) {
       const names = this.entries.map((e) => e.name).join(', ')
       throw new ServerError('unknown_connection', `неизвестное подключение: ${name}; доступны: ${names}`)

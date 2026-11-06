@@ -55,7 +55,7 @@ export const oraCatalog: CatalogAdapter = {
   },
 
   async listTables(db, o) {
-    const schemaClause = o.schema !== undefined ? 'AND t.owner = :schema' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(t.owner) = UPPER(:schema)' : ''
     const rows = await queryRows(
       db,
       `SELECT t.owner AS schema_name, t.table_name AS name, c.comments AS obj_comment
@@ -72,7 +72,7 @@ export const oraCatalog: CatalogAdapter = {
   },
 
   async listViews(db, o) {
-    const schemaClause = o.schema !== undefined ? 'AND v.owner = :schema' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(v.owner) = UPPER(:schema)' : ''
     const rows = await queryRows(
       db,
       `SELECT v.owner AS schema_name, v.view_name AS name, c.comments AS obj_comment
@@ -96,7 +96,7 @@ export const oraCatalog: CatalogAdapter = {
         `SELECT o.object_type AS object_type, c.comments AS obj_comment
          FROM all_objects o
          LEFT JOIN all_tab_comments c ON c.owner = o.owner AND c.table_name = o.object_name
-         WHERE (o.owner = UPPER(:schema) OR :schema IS NULL) AND o.object_name = UPPER(:table_name) AND o.object_type IN ('TABLE','VIEW')`,
+         WHERE (UPPER(o.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(o.object_name) = UPPER(:table_name) AND o.object_type IN ('TABLE','VIEW')`,
         [p('schema', schema), p('table_name', o.table)],
         o,
       ),
@@ -110,7 +110,7 @@ export const oraCatalog: CatalogAdapter = {
          FROM all_tab_columns c
          LEFT JOIN all_col_comments cc
            ON cc.owner = c.owner AND cc.table_name = c.table_name AND cc.column_name = c.column_name
-         WHERE (c.owner = UPPER(:schema) OR :schema IS NULL) AND c.table_name = UPPER(:table_name)
+         WHERE (UPPER(c.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(c.table_name) = UPPER(:table_name)
          ORDER BY c.column_id`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -120,7 +120,7 @@ export const oraCatalog: CatalogAdapter = {
         `SELECT col.column_name AS name
          FROM all_constraints con
          JOIN all_cons_columns col ON col.owner = con.owner AND col.constraint_name = con.constraint_name
-         WHERE (con.owner = UPPER(:schema) OR :schema IS NULL) AND con.table_name = UPPER(:table_name) AND con.constraint_type = 'P'
+         WHERE (UPPER(con.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(con.table_name) = UPPER(:table_name) AND con.constraint_type = 'P'
          ORDER BY col.position`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -165,11 +165,11 @@ export const oraCatalog: CatalogAdapter = {
     const filters: string[] = []
     const params: TDbParam[] = []
     if (o.schema !== undefined) {
-      filters.push('(con.owner = UPPER(:schema) OR rcon.owner = UPPER(:schema))')
+      filters.push('(UPPER(con.owner) = UPPER(:schema) OR UPPER(rcon.owner) = UPPER(:schema))')
       params.push(p('schema', o.schema))
     }
     if (o.table !== undefined) {
-      filters.push('(con.table_name = UPPER(:table_name) OR rcon.table_name = UPPER(:table_name))')
+      filters.push('(UPPER(con.table_name) = UPPER(:table_name) OR UPPER(rcon.table_name) = UPPER(:table_name))')
       params.push(p('table_name', o.table))
     }
     const where = filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''
@@ -188,25 +188,27 @@ export const oraCatalog: CatalogAdapter = {
       ),
       queryRows(
         db,
-        `SELECT con.constraint_name AS name, cc.column_name AS column_name, rcc.column_name AS referenced_column
+        `SELECT con.constraint_name AS name, con.owner AS schema_name, con.table_name AS table_name,
+                cc.column_name AS column_name, rcc.column_name AS referenced_column
          FROM all_constraints con
+         JOIN all_constraints rcon ON rcon.owner = con.r_owner AND rcon.constraint_name = con.r_constraint_name
          JOIN all_cons_columns cc ON cc.owner = con.owner AND cc.constraint_name = con.constraint_name
          JOIN all_cons_columns rcc
            ON rcc.owner = con.r_owner AND rcc.constraint_name = con.r_constraint_name AND rcc.position = cc.position
-         WHERE con.constraint_type = 'R'
+         WHERE con.constraint_type = 'R' ${where}
          ORDER BY con.constraint_name, cc.position`,
-        [],
+        params,
         o,
       ),
     ])
 
     const colMap = new Map<string, { columns: string[]; referencedColumns: string[] }>()
     for (const r of cols) {
-      const name = S(r, 'name')!
-      let e = colMap.get(name)
+      const key = `${S(r, 'schema_name')}.${S(r, 'table_name')}.${S(r, 'name')}`
+      let e = colMap.get(key)
       if (!e) {
         e = { columns: [], referencedColumns: [] }
-        colMap.set(name, e)
+        colMap.set(key, e)
       }
       e.columns.push(S(r, 'column_name')!)
       e.referencedColumns.push(S(r, 'referenced_column')!)
@@ -215,7 +217,8 @@ export const oraCatalog: CatalogAdapter = {
     const out: ForeignKey[] = []
     for (const r of meta) {
       const name = S(r, 'name')!
-      const c = colMap.get(name) ?? { columns: [], referencedColumns: [] }
+      const key = `${S(r, 'schema_name')}.${S(r, 'table_name')}.${name}`
+      const c = colMap.get(key) ?? { columns: [], referencedColumns: [] }
       out.push({
         name,
         schema: S(r, 'schema_name'),
@@ -240,7 +243,7 @@ export const oraCatalog: CatalogAdapter = {
                 ic.column_name AS column_name, ic.descend AS descend
          FROM all_indexes i
          JOIN all_ind_columns ic ON ic.index_owner = i.owner AND ic.index_name = i.index_name
-         WHERE (i.table_owner = UPPER(:schema) OR :schema IS NULL) AND i.table_name = UPPER(:table_name)
+         WHERE (UPPER(i.table_owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(i.table_name) = UPPER(:table_name)
          ORDER BY i.index_name, ic.column_position`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -248,7 +251,7 @@ export const oraCatalog: CatalogAdapter = {
       queryRows(
         db,
         `SELECT c.index_name AS index_name FROM all_constraints c
-         WHERE (c.owner = UPPER(:schema) OR :schema IS NULL) AND c.table_name = UPPER(:table_name)
+         WHERE (UPPER(c.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(c.table_name) = UPPER(:table_name)
            AND c.constraint_type = 'P' AND c.index_name IS NOT NULL`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -285,7 +288,7 @@ export const oraCatalog: CatalogAdapter = {
         `SELECT con.constraint_name AS name, con.constraint_type AS type, col.column_name AS column_name
          FROM all_constraints con
          JOIN all_cons_columns col ON col.owner = con.owner AND col.constraint_name = con.constraint_name
-         WHERE (con.owner = UPPER(:schema) OR :schema IS NULL) AND con.table_name = UPPER(:table_name) AND con.constraint_type IN ('P','U')
+         WHERE (UPPER(con.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(con.table_name) = UPPER(:table_name) AND con.constraint_type IN ('P','U')
          ORDER BY con.constraint_name, col.position`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -309,7 +312,7 @@ export const oraCatalog: CatalogAdapter = {
         db,
         `SELECT con.constraint_name AS name, con.search_condition AS expression
          FROM all_constraints con
-         WHERE (con.owner = UPPER(:schema) OR :schema IS NULL) AND con.table_name = UPPER(:table_name) AND con.constraint_type = 'C'
+         WHERE (UPPER(con.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(con.table_name) = UPPER(:table_name) AND con.constraint_type = 'C'
          ORDER BY con.constraint_name`,
         [p('schema', schema), p('table_name', o.table)],
         o,
@@ -331,7 +334,7 @@ export const oraCatalog: CatalogAdapter = {
         : o.kind === 'function'
           ? "AND o.object_type = 'FUNCTION'"
           : "AND o.object_type IN ('PROCEDURE','FUNCTION')"
-    const schemaClause = o.schema !== undefined ? 'AND o.owner = UPPER(:schema)' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(o.owner) = UPPER(:schema)' : ''
     const rows = await queryRows(
       db,
       `SELECT o.owner AS schema_name, o.object_name AS name, o.object_type AS object_type
@@ -353,8 +356,8 @@ export const oraCatalog: CatalogAdapter = {
   },
 
   async listTriggers(db, o) {
-    const schemaClause = o.schema !== undefined ? 'AND t.owner = UPPER(:schema)' : ''
-    const tableClause = o.table !== undefined ? 'AND t.table_name = UPPER(:table_name)' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(t.owner) = UPPER(:schema)' : ''
+    const tableClause = o.table !== undefined ? 'AND UPPER(t.table_name) = UPPER(:table_name)' : ''
     const params: TDbParam[] = []
     if (o.schema !== undefined) params.push(p('schema', o.schema))
     if (o.table !== undefined) params.push(p('table_name', o.table))
@@ -365,7 +368,7 @@ export const oraCatalog: CatalogAdapter = {
               t.trigger_type AS trigger_type, t.status AS status, t.triggering_event AS triggering_event
        FROM all_triggers t
        JOIN all_users u ON u.username = t.owner AND u.oracle_maintained = 'N'
-       WHERE 1=1 ${schemaClause} ${tableClause}`,
+       WHERE 1=1 AND t.table_name IS NOT NULL ${schemaClause} ${tableClause}`,
       params,
       o,
     )
@@ -395,7 +398,7 @@ export const oraCatalog: CatalogAdapter = {
   },
 
   async listSequences(db, o) {
-    const schemaClause = o.schema !== undefined ? 'AND s.sequence_owner = UPPER(:schema)' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(s.sequence_owner) = UPPER(:schema)' : ''
     const rows = await queryRows(
       db,
       `SELECT s.sequence_owner AS schema_name, s.sequence_name AS name
@@ -413,7 +416,7 @@ export const oraCatalog: CatalogAdapter = {
   async getDefinitions(db, o) {
     const params: TDbParam[] = [p('name', o.name)]
     if (o.schema !== undefined) params.push(p('schema', o.schema))
-    const schemaClause = o.schema !== undefined ? 'AND owner = UPPER(:schema)' : ''
+    const schemaClause = o.schema !== undefined ? 'AND UPPER(owner) = UPPER(:schema)' : ''
 
     const out: DefinitionInfo[] = []
     switch (o.objectType) {
@@ -422,7 +425,7 @@ export const oraCatalog: CatalogAdapter = {
           db,
           `SELECT v.owner AS schema_name, v.view_name AS name, v.text AS definition
            FROM all_views v
-           WHERE v.view_name = UPPER(:name) ${schemaClause}`,
+           WHERE UPPER(v.view_name) = UPPER(:name) ${schemaClause}`,
           params,
           o,
         )
@@ -445,7 +448,7 @@ export const oraCatalog: CatalogAdapter = {
           db,
           `SELECT s.owner AS schema_name, s.name AS name, s.text AS text, s.line AS line
            FROM all_source s
-           WHERE s.name = UPPER(:name) AND s.type = :src_type ${schemaClause}
+           WHERE UPPER(s.name) = UPPER(:name) AND s.type = :src_type ${schemaClause}
            ORDER BY s.line`,
           [...params, p('src_type', type)],
           o,
@@ -473,14 +476,14 @@ export const oraCatalog: CatalogAdapter = {
         break
       }
       case 'trigger': {
-        const tableClause = o.table !== undefined ? 'AND t.table_name = UPPER(:table_name)' : ''
+        const tableClause = o.table !== undefined ? 'AND UPPER(t.table_name) = UPPER(:table_name)' : ''
         if (o.table !== undefined) params.push(p('table_name', o.table))
         const rows = await queryRows(
           db,
           `SELECT t.owner AS schema_name, t.trigger_name AS name, t.table_name AS table_name,
                   t.trigger_body AS definition
            FROM all_triggers t
-           WHERE t.trigger_name = UPPER(:name) ${schemaClause} ${tableClause}`,
+           WHERE UPPER(t.trigger_name) = UPPER(:name) ${schemaClause} ${tableClause}`,
           params,
           o,
         )

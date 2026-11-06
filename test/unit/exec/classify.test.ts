@@ -10,6 +10,15 @@ describe('isReadOnlyStatement', () => {
     expect(isReadOnlyStatement('WITH x AS (SELECT 1) SELECT * FROM x')).toBe(true)
   })
 
+  it('SELECT … INTO → false (пишет)', () => {
+    expect(isReadOnlyStatement('SELECT * INTO new_t FROM src')).toBe(false)
+  })
+
+  it('WITH data-modifying CTE → false (пишет)', () => {
+    expect(isReadOnlyStatement('WITH x AS (SELECT 1) DELETE FROM t WHERE id IN (SELECT 1 FROM x)')).toBe(false)
+    expect(isReadOnlyStatement('WITH x AS (SELECT 1) UPDATE t SET a = 1')).toBe(false)
+  })
+
   it('ведущие комментарии пропускаются', () => {
     expect(isReadOnlyStatement('  -- comment\nSELECT 1')).toBe(true)
     expect(isReadOnlyStatement('/* c */ SELECT 1')).toBe(true)

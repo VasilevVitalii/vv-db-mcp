@@ -1,4 +1,4 @@
-import type { DbConnection, TDbKind } from 'vv-db-connection'
+import type { DbConnection, TDbKind, TDbParam } from 'vv-db-connection'
 import { throwDbError } from '../errors/map.js'
 import { ServerError } from '../errors/map.js'
 import type { Opts, TypeCategory } from './types.js'
@@ -7,7 +7,7 @@ import type { Opts, TypeCategory } from './types.js'
 export async function queryRows(
   db: DbConnection,
   sql: string,
-  params: import('vv-db-connection').TDbParam[],
+  params: TDbParam[],
   o: Opts,
 ): Promise<Record<string, unknown>[]> {
   const r = await db.exec(sql, params, {
@@ -36,7 +36,9 @@ export function resolveName(
   schemaScope?: string,
 ): { schema: string | null; name: string } {
   const inScope =
-    schemaScope === undefined ? candidates : candidates.filter((c) => (c.schema ?? null) === schemaScope)
+    schemaScope === undefined
+      ? candidates
+      : candidates.filter((c) => (c.schema ?? null)?.toLowerCase() === schemaScope.toLowerCase())
 
   const exact = inScope.filter((c) => c.name === requested)
   if (exact.length === 1) return { schema: exact[0]!.schema, name: exact[0]!.name }

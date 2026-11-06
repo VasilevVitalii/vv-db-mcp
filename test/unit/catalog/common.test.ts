@@ -79,7 +79,11 @@ describe('resolveName', () => {
   })
 
   it('без учёта регистра', () => {
-    expect(resolveName(cands, 'bar')).toEqual({ schema: 'public', name: 'bar' })
+    expect(resolveName(cands, 'BAR')).toEqual({ schema: 'public', name: 'bar' })
+  })
+
+  it('схема без учёта регистра', () => {
+    expect(resolveName(cands, 'Foo', 'PUBLIC')).toEqual({ schema: 'public', name: 'Foo' })
   })
 
   it('not_found', () => {

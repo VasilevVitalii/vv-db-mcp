@@ -136,5 +136,7 @@ export interface CatalogAdapter {
       table?: string
     },
   ): Promise<DefinitionInfo[]>
+  // Firebird без схем: `schema` всегда null и молча игнорируется адаптером fb
+  // (assertSchemaAllowed в meta.ts не допускает schema для fb до вызова).
   buildSampleSql(o: { schema: string | null; table: string; columns: string[]; limit: number }): string
 }

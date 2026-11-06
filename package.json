@@ -28,7 +28,8 @@
     "node": ">=18"
   },
   "files": [
-    "dist"
+    "dist",
+    "connections.example.json"
   ],
   "scripts": {
     "build": "tsc",

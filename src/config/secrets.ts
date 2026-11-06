@@ -8,8 +8,11 @@ import { readFile, stat } from 'node:fs/promises'
  * - имена и значения не обрезаются; повторяющийся ключ — last-wins.
  */
 export function parseSecrets(content: string): Map<string, string> {
+  // UTF-8 BOM в начале файла срезается: иначе первый ключ получает U+FEFF
+  // и не совпадает ни с одним ожидаемым именем.
+  const src = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content
   const map = new Map<string, string>()
-  for (const line of content.split(/\r?\n/)) {
+  for (const line of src.split(/\r?\n/)) {
     if (line === '' || line.startsWith('#')) continue
     const eq = line.indexOf('=')
     if (eq === -1) continue

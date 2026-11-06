@@ -25,11 +25,15 @@ describe.skipIf(!connectAvailable())('интеграционные: безопа
       user: 'x',
       password: 'secretpw',
     })
-    await expect(runSql(bad, 'SELECT 1', [], { timeoutMs: 5000, maxRows: 10, limits: { timeoutMs: 60000, maxTimeoutMs: 3600000, maxRows: 1000, maxRowsCap: 10000, maxCellChars: 65536, maxBinaryBytes: 4096 } }))
-      .rejects.toBeInstanceOf(ToolFailure)
-    // живое подключение при этом доступно
-    const ok = await runSql(pg()!.db, 'SELECT 1 AS n', [], { timeoutMs: 30000, maxRows: 10, limits: pg()!.limits, connection: 'pg' })
-    expect(Number(ok.resultSets[0].rows[0].n)).toBe(1)
+    try {
+      await expect(runSql(bad, 'SELECT 1', [], { timeoutMs: 5000, maxRows: 10, limits: { timeoutMs: 60000, maxTimeoutMs: 3600000, maxRows: 1000, maxRowsCap: 10000, maxCellChars: 65536, maxBinaryBytes: 4096 } }))
+        .rejects.toBeInstanceOf(ToolFailure)
+      // живое подключение при этом доступно
+      const ok = await runSql(pg()!.db, 'SELECT 1 AS n', [], { timeoutMs: 30000, maxRows: 10, limits: pg()!.limits, connection: 'pg' })
+      expect(Number(ok.resultSets[0].rows[0].n)).toBe(1)
+    } finally {
+      await bad.close()
+    }
   }, 15000)
 
   it('пароли не попадают в текст ошибки и list_connections', async () => {

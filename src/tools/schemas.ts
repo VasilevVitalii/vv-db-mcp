@@ -69,3 +69,4 @@ export const toolErrorSchema = z.object({
   }),
 })
 export type ToolError = z.infer<typeof toolErrorSchema>
+export type ToolErrorKind = z.infer<typeof toolErrorKindSchema>

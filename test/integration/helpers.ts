@@ -19,7 +19,9 @@ export const TRG = 'vvdbmcp_trg_child'
 export const PROC = 'vvdbmcp_proc'
 export const FUNC = 'vvdbmcp_func'
 export const IDX = 'vvdbmcp_idx_child'
+export const DESC_IDX = 'vvdbmcp_idx_desc'
 export const TRG_FN = 'vvdbmcp_trgfn'
+export const MV = 'vvdbmcp_mv_child'
 
 /** Схема по умолчанию для каждого kind; null — схема не указывается (ora: текущая схема, fb: схем нет). */
 export const DEFAULT_SCHEMA: Record<TDbKind, string | null> = {
@@ -92,7 +94,9 @@ const CREATE: Record<TDbKind, string[]> = {
     `CREATE TABLE ${PARENT} (id integer PRIMARY KEY, name varchar(64) NOT NULL UNIQUE, note varchar(128))`,
     `CREATE TABLE ${CHILD} (id integer PRIMARY KEY, parent_id integer REFERENCES ${PARENT}(id), code integer CHECK (code >= 0), label varchar(64))`,
     `CREATE INDEX ${IDX} ON ${CHILD} (parent_id, code)`,
+    `CREATE INDEX ${DESC_IDX} ON ${CHILD} (parent_id DESC)`,
     `CREATE VIEW ${VIEW} AS SELECT id, parent_id, code FROM ${CHILD}`,
+    `CREATE MATERIALIZED VIEW ${MV} AS SELECT id, parent_id FROM ${CHILD}`,
     `CREATE SEQUENCE ${SEQ}`,
     `CREATE FUNCTION ${TRG_FN}() RETURNS trigger AS $$ BEGIN IF NEW.label IS NULL THEN NEW.label := 'auto'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`,
     `CREATE TRIGGER ${TRG} BEFORE INSERT ON ${CHILD} FOR EACH ROW EXECUTE FUNCTION ${TRG_FN}()`,
@@ -138,7 +142,9 @@ const DROP: Record<TDbKind, string[]> = {
     `DROP FUNCTION IF EXISTS ${FUNC}(integer)`,
     `DROP PROCEDURE IF EXISTS ${PROC}(integer)`,
     `DROP VIEW IF EXISTS ${VIEW}`,
+    `DROP MATERIALIZED VIEW IF EXISTS ${MV}`,
     `DROP SEQUENCE IF EXISTS ${SEQ}`,
+    `DROP INDEX IF EXISTS ${DESC_IDX}`,
     `DROP TABLE IF EXISTS ${CHILD}`,
     `DROP TABLE IF EXISTS ${PARENT}`,
     `DROP TABLE IF EXISTS vvdbmcp_tmp_pg`,

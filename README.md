@@ -39,13 +39,13 @@ vv-db-mcp --config ./connections.json --secrets ./.secret
 (`{ "kind": "mssql", "user", "password" }` или `{ "kind": "ntlm", "domain", "user", "password" }`, обяз.),
 `trustServerCertificate`, `encrypt`, `ca`, `connectTimeout`.
 
-**`pg`:** `host` (обяз.), `port` (5432), `database`, `user`, `password` (обяз.),
+**`pg`:** `host` (обяз.), `port` (5432), `database` (обяз.), `user`, `password` (обяз.),
 `ssl` (`true` или `{ "ca"?, "trustServerCertificate"? }`), `connectTimeout`.
 
 **`ora`:** `host` (обяз.), `port` (1521), `service` (обяз.), `user`, `password` (обяз.),
 `privilege`, `connectTimeout`, `queueTimeout`, `poolMin`, `poolMax`, `poolIncrement`.
 
-**`fb`:** `host` (обяз.), `port` (3050), `database`, `user`, `password` (обяз.),
+**`fb`:** `host` (обяз.), `port` (3050), `database` (обяз.), `user`, `password` (обяз.),
 `charset` (`UTF8`|`WIN1251`), `numericMode` (`lossy`|`safe`|`string`), `connectTimeout`.
 
 ### Лимиты
@@ -105,12 +105,14 @@ DST_PASSWORD=...
 | `list_routines` | Процедуры и функции. |
 | `list_triggers` | Триггеры. |
 | `list_sequences` | Последовательности/генераторы. |
-| `get_definition` | DDL-определение объекта (view/function/procedure/trigger). |
+| `get_definition` | Текст определения объекта (view/function/procedure/trigger; DDL или body — зависит от СУБД). |
 | `sample_rows` | Первые N строк таблицы. |
 
 Инструменты чтения помечены `readOnlyHint: true`; `execute_sql`/`execute_transaction` —
-`destructiveHint: true`. Все инструменты принимают `connection` (имя подключения) и,
-где применимо, `timeoutMs`; `execute_sql`/`execute_transaction` — ещё `maxRows`.
+`destructiveHint: true`. Все инструменты принимают `connection` (имя подключения).
+`timeoutMs` принимают `ping`, `version`, `execute_sql`, `execute_transaction` и
+`sample_rows` (у метаданных-инструментов время ожидания берётся из лимита
+подключения); `maxRows` — `execute_sql`/`execute_transaction`.
 
 ## Ошибки
 
@@ -118,7 +120,14 @@ DST_PASSWORD=...
 `[kind] message`, где `kind` — тип (`connect`, `query`, `timeout`, `aborted`,
 `invalid_argument`, `internal`, …). Для сбоя посередине набора операторов добавляются
 `statementIndex` (0-based) и, при неопределённом исходе, `outcomeUnknown: true`.
-Значения секретов из `password`-полей маскируются (`***`) во всех текстах ошибок.
+Значения секретов из `password`-полей маскируются (`***`) во всех текстах ошибок;
+значения короче 4 символов не маскируются (иначе текст обесценивается).
+
+## Совместимость
+
+- **PostgreSQL ≥ 11** — `list_routines` опирается на `pg_proc.prokind`.
+- **Firebird ≥ 3** — `list_routines` опирается на `RDB$PACKAGE_NAME`.
+- MSSQL и Oracle — без дополнительных ограничений по версии.
 
 ## Разработка
 

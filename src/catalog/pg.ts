@@ -101,14 +101,39 @@ export const pgCatalog: CatalogAdapter = {
       ),
       queryRows(
         db,
-        `SELECT c.ordinal_position AS position, c.column_name AS name,
-                c.data_type AS data_type, c.udt_name AS udt_name,
-                c.character_maximum_length AS char_len,
-                c.numeric_precision AS num_precision, c.numeric_scale AS num_scale,
-                c.is_nullable AS is_nullable, c.column_default AS default_value
-         FROM information_schema.columns c
-         WHERE c.table_schema = :schema AND c.table_name = :table
-         ORDER BY c.ordinal_position`,
+        `SELECT a.attnum AS position, a.attname AS name,
+                CASE
+                  WHEN t.typcategory = 'A' THEN 'ARRAY'
+                  WHEN t.typtype IN ('d', 'e') OR t.typcategory = 'C' THEN 'USER-DEFINED'
+                  ELSE CASE t.typname
+                         WHEN 'varchar' THEN 'character varying'
+                         WHEN 'bpchar' THEN 'character'
+                         WHEN 'int2' THEN 'smallint'
+                         WHEN 'int4' THEN 'integer'
+                         WHEN 'int8' THEN 'bigint'
+                         WHEN 'float4' THEN 'real'
+                         WHEN 'float8' THEN 'double precision'
+                         WHEN 'bool' THEN 'boolean'
+                         WHEN 'timestamptz' THEN 'timestamp with time zone'
+                         WHEN 'timestamp' THEN 'timestamp without time zone'
+                         WHEN 'timetz' THEN 'time with time zone'
+                         WHEN 'time' THEN 'time without time zone'
+                         ELSE t.typname
+                       END
+                END AS data_type,
+                t.typname AS udt_name,
+                information_schema._pg_char_max_length(a.atttypid, a.atttypmod) AS char_len,
+                information_schema._pg_numeric_precision(a.atttypid, a.atttypmod) AS num_precision,
+                information_schema._pg_numeric_scale(a.atttypid, a.atttypmod) AS num_scale,
+                CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+                pg_get_expr(d.adbin, d.adrelid) AS default_value
+         FROM pg_attribute a
+         JOIN pg_class c ON c.oid = a.attrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         JOIN pg_type t ON t.oid = a.atttypid
+         LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+         WHERE c.relname = :table AND n.nspname = :schema AND a.attnum > 0 AND NOT a.attisdropped
+         ORDER BY a.attnum`,
         [p('table', o.table), p('schema', schema)],
         o,
       ),
@@ -183,7 +208,7 @@ export const pgCatalog: CatalogAdapter = {
       filters.push('(c1.relname = :table OR c2.relname = :table)')
       params.push(p('table', o.table))
     }
-    const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
+    const fkWhere = `con.contype = 'f'${filters.length > 0 ? ` AND ${filters.join(' AND ')}` : ''}`
 
     const [meta, cols] = await Promise.all([
       queryRows(
@@ -197,31 +222,36 @@ export const pgCatalog: CatalogAdapter = {
          JOIN pg_namespace n1 ON n1.oid = c1.relnamespace
          JOIN pg_class c2 ON c2.oid = con.confrelid
          JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
-         ${where} AND con.contype = 'f'`,
+         WHERE ${fkWhere}`,
         params,
         o,
       ),
       queryRows(
         db,
-        `SELECT con.conname AS name, a1.attname AS column_name, a2.attname AS referenced_column
+        `SELECT con.conname AS name, n1.nspname AS schema_name, c1.relname AS table_name,
+                a1.attname AS column_name, a2.attname AS referenced_column
          FROM pg_constraint con
          CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS u(col, refcol, ord)
+         JOIN pg_class c1 ON c1.oid = con.conrelid
+         JOIN pg_namespace n1 ON n1.oid = c1.relnamespace
+         JOIN pg_class c2 ON c2.oid = con.confrelid
+         JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
          JOIN pg_attribute a1 ON a1.attrelid = con.conrelid AND a1.attnum = u.col
          JOIN pg_attribute a2 ON a2.attrelid = con.confrelid AND a2.attnum = u.refcol
-         WHERE con.contype = 'f'
+         WHERE ${fkWhere}
          ORDER BY con.conname, u.ord`,
-        [],
+        params,
         o,
       ),
     ])
 
     const colMap = new Map<string, { columns: string[]; referencedColumns: string[] }>()
     for (const r of cols) {
-      const name = String(r.name)
-      let e = colMap.get(name)
+      const key = `${String(r.schema_name)}.${String(r.table_name)}.${String(r.name)}`
+      let e = colMap.get(key)
       if (!e) {
         e = { columns: [], referencedColumns: [] }
-        colMap.set(name, e)
+        colMap.set(key, e)
       }
       e.columns.push(String(r.column_name))
       e.referencedColumns.push(String(r.referenced_column))
@@ -230,7 +260,8 @@ export const pgCatalog: CatalogAdapter = {
     const out: ForeignKey[] = []
     for (const r of meta) {
       const name = String(r.name)
-      const c = colMap.get(name) ?? { columns: [], referencedColumns: [] }
+      const key = `${String(r.schema_name)}.${String(r.table_name)}.${name}`
+      const c = colMap.get(key) ?? { columns: [], referencedColumns: [] }
       out.push({
         name,
         schema: S(r, 'schema_name'),
@@ -252,14 +283,15 @@ export const pgCatalog: CatalogAdapter = {
       db,
       `SELECT i.relname AS name, ix.indisunique AS is_unique, ix.indisprimary AS is_primary,
               a.attname AS column_name,
-              (((ix.indoption::int2[])[array_position(ix.indkey, a.attnum)]::int & 1) = 1) AS is_desc
+              ((u.opt::int & 1) = 1) AS is_desc
        FROM pg_index ix
        JOIN pg_class i ON i.oid = ix.indexrelid
        JOIN pg_class t ON t.oid = ix.indrelid
        JOIN pg_namespace n ON n.oid = t.relnamespace
-       JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+       CROSS JOIN LATERAL unnest(ix.indkey::int2[], ix.indoption::int2[]) WITH ORDINALITY AS u(attnum, opt, ord)
+       JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = u.attnum
        WHERE t.relname = :table AND n.nspname = :schema
-       ORDER BY i.relname, array_position(ix.indkey, a.attnum)`,
+       ORDER BY i.relname, u.ord`,
       [p('table', o.table), p('schema', schema)],
       o,
     )

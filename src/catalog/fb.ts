@@ -224,20 +224,24 @@ export const fbCatalog: CatalogAdapter = {
         db,
         `SELECT rc.RDB$CONSTRAINT_NAME AS name, iseg.RDB$FIELD_NAME AS column_name
          FROM RDB$RELATION_CONSTRAINTS rc
+         JOIN RDB$REF_CONSTRAINTS refc ON refc.RDB$CONSTRAINT_NAME = rc.RDB$CONSTRAINT_NAME
+         JOIN RDB$RELATION_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME = refc.RDB$CONST_NAME_UQ
          JOIN RDB$INDEX_SEGMENTS iseg ON iseg.RDB$INDEX_NAME = rc.RDB$INDEX_NAME
-         WHERE rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
+         WHERE rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY' ${tableClause}
          ORDER BY rc.RDB$CONSTRAINT_NAME, iseg.RDB$FIELD_POSITION`,
-        [],
+        params,
         o,
       ),
       queryRows(
         db,
         `SELECT refc.RDB$CONSTRAINT_NAME AS name, iseg.RDB$FIELD_NAME AS referenced_column
          FROM RDB$REF_CONSTRAINTS refc
+         JOIN RDB$RELATION_CONSTRAINTS rc ON rc.RDB$CONSTRAINT_NAME = refc.RDB$CONSTRAINT_NAME
          JOIN RDB$RELATION_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME = refc.RDB$CONST_NAME_UQ
          JOIN RDB$INDEX_SEGMENTS iseg ON iseg.RDB$INDEX_NAME = ref.RDB$INDEX_NAME
+         WHERE rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY' ${tableClause}
          ORDER BY refc.RDB$CONSTRAINT_NAME, iseg.RDB$FIELD_POSITION`,
-        [],
+        params,
         o,
       ),
     ])
@@ -382,7 +386,8 @@ export const fbCatalog: CatalogAdapter = {
       const rows = await queryRows(
         db,
         `SELECT f.RDB$FUNCTION_NAME AS name FROM RDB$FUNCTIONS f
-         WHERE f.RDB$PACKAGE_NAME IS NULL AND f.RDB$MODULE_NAME IS NULL`,
+         WHERE f.RDB$PACKAGE_NAME IS NULL AND f.RDB$MODULE_NAME IS NULL
+           AND (f.RDB$SYSTEM_FLAG IS NULL OR f.RDB$SYSTEM_FLAG = 0)`,
         [],
         o,
       )

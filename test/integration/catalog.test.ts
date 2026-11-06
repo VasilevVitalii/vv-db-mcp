@@ -15,6 +15,8 @@ import {
   PROC,
   FUNC,
   IDX,
+  DESC_IDX,
+  MV,
   DEFAULT_SCHEMA,
   type Harness,
 } from './helpers.js'
@@ -79,6 +81,14 @@ describe.skipIf(!connectAvailable())('интеграционные: катало
         expect(idCol!.isPrimaryKey).toBe(true)
       })
 
+      if (kind === 'pg') {
+        it('describe_table: materialized view имеет колонки', async () => {
+          const d = await cat().describeTable(db(), { ...opts(), schema: schema(), table: MV })
+          expect(d.objectType).toBe('view')
+          expect(d.columns.length).toBeGreaterThan(0)
+        })
+      }
+
       it('list_foreign_keys: child → parent', async () => {
         const fks = await cat().listForeignKeys(db(), { ...opts(), table: CHILD, schema: schema() ?? undefined })
         const fk = fks.find(
@@ -94,6 +104,11 @@ describe.skipIf(!connectAvailable())('интеграционные: катало
         const composite = idx.find((i) => i.name.toLowerCase() === IDX.toLowerCase())
         expect(composite).toBeDefined()
         expect(composite!.columns.length).toBeGreaterThanOrEqual(2)
+        if (kind === 'pg') {
+          const desc = idx.find((i) => i.name.toLowerCase() === DESC_IDX.toLowerCase())
+          expect(desc).toBeDefined()
+          expect(desc!.columns.some((c) => c.descending)).toBe(true)
+        }
       })
 
       it('list_constraints: PK, UNIQUE, CHECK', async () => {

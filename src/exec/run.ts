@@ -72,7 +72,8 @@ function isTxConnectionLost(code?: string): boolean {
   if (/^57P0[123]$/.test(code)) return true // pg admin_shutdown / crash_shutdown / cannot_connect_now
   if (/^NJS-/.test(code)) return true // oracledb network errors
   if (/^ORA-0311[345]$/.test(code) || code === 'ORA-12170') return true // oracle end-of-file / network timeout
-  if (/^E[A-Z]+$/.test(code)) return true // tedious E* (ESOCKET, ECONNRESET, ELOGIN, …)
+  // tedious сетевые коды (потеря связи), без ELOGIN/EREQUEST (auth/протокол — не обрыв)
+  if (/^E(SOCKET|CONNRESET|CONNREFUSED|TIMEOUT|CONNABORTED|NETUNREACH|HOSTUNREACH|NOTFOUND|CONNCLOSED)$/.test(code)) return true
   return false
 }
 
@@ -136,7 +137,7 @@ export async function runSql(
             cur.rowsAffected = ev.count
             break
           case 'outParams':
-            outParams = ev.params
+            outParams = serializeRow(ev.params, serializeOpts(opts.limits), st)
             break
           case 'finish':
             if (ev.error) finishError = ev.error
@@ -159,8 +160,10 @@ export async function runSql(
   }
 
   if (finishError) {
-    // maxRows-обрыв с writes-хвостом — результат неоднозначен (раздел 7.3)
-    if (abortedByMaxRows && finishError.kind === 'aborted') {
+    // maxRows-обрыв с writes-хвостом — результат неоднозначен (раздел 7.3).
+    // Проверка !opts.signal?.aborted отличает наш abort (maxRows) от отмены
+    // клиентом: клиентская отмена должна уйти как ошибка, а не как «успех».
+    if (abortedByMaxRows && finishError.kind === 'aborted' && !opts.signal?.aborted) {
       if (tailHasWrite(sql)) {
         throwDbError(
           {
@@ -213,12 +216,15 @@ export async function runTx(
   let currentIndex = -1
 
   const result = await db.execTxDynamic(
-    async (exec, signal) => {
+    async (exec, _signal) => {
       const out: TxStatementResult[] = []
       for (let i = 0; i < statements.length; i++) {
-        if (signal.aborted) throw new Error('transaction aborted')
         currentIndex = i
         const stmt = statements[i]
+        // При отмене (timeout/клиент) exec() сам бросает структурированный
+        // abortError (kind 'aborted'/'timeout'), который computeTxOutcome верно
+        // классифицирует как неоднозначный исход; бросать здесь bare Error нельзя —
+        // драйвер пометил бы его kind 'tx' и отмена потеряла бы признак.
         const r = await exec(stmt.sql, toDbParams(stmt.params))
         const rows = r.rows.slice(0, opts.maxRows).map((row) => serializeRow(row, serializeOpts(opts.limits), st))
         const item: TxStatementResult = {

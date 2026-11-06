@@ -205,24 +205,30 @@ export const mssqlCatalog: CatalogAdapter = {
       ),
       queryRows(
         db,
-        `SELECT fk.name AS name, pc.name AS column_name, rc.name AS referenced_column
+        `SELECT fk.name AS name, s1.name AS schema_name, t1.name AS table_name,
+                pc.name AS column_name, rc.name AS referenced_column
          FROM sys.foreign_key_columns fkc
          JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id
+         JOIN sys.tables t1 ON t1.object_id = fkc.parent_object_id
+         JOIN sys.schemas s1 ON s1.schema_id = t1.schema_id
+         JOIN sys.tables t2 ON t2.object_id = fkc.referenced_object_id
+         JOIN sys.schemas s2 ON s2.schema_id = t2.schema_id
          JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
          JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+         ${where}
          ORDER BY fkc.constraint_column_id`,
-        [],
+        params,
         o,
       ),
     ])
 
     const colMap = new Map<string, { columns: string[]; referencedColumns: string[] }>()
     for (const r of cols) {
-      const name = String(r.name)
-      let e = colMap.get(name)
+      const key = `${String(r.schema_name)}.${String(r.table_name)}.${String(r.name)}`
+      let e = colMap.get(key)
       if (!e) {
         e = { columns: [], referencedColumns: [] }
-        colMap.set(name, e)
+        colMap.set(key, e)
       }
       e.columns.push(String(r.column_name))
       e.referencedColumns.push(String(r.referenced_column))
@@ -231,7 +237,8 @@ export const mssqlCatalog: CatalogAdapter = {
     const out: ForeignKey[] = []
     for (const r of meta) {
       const name = String(r.name)
-      const c = colMap.get(name) ?? { columns: [], referencedColumns: [] }
+      const key = `${String(r.schema_name)}.${String(r.table_name)}.${name}`
+      const c = colMap.get(key) ?? { columns: [], referencedColumns: [] }
       out.push({
         name,
         schema: S(r, 'schema_name'),
@@ -385,22 +392,25 @@ export const mssqlCatalog: CatalogAdapter = {
       ),
       queryRows(
         db,
-        `SELECT tr.name AS name, te.type AS event_type
+        `SELECT s.name AS schema_name, tr.name AS name, te.type AS event_type
          FROM sys.trigger_events te
-         JOIN sys.triggers tr ON tr.object_id = te.object_id`,
-        [],
+         JOIN sys.triggers tr ON tr.object_id = te.object_id
+         JOIN sys.tables t ON t.object_id = tr.parent_id
+         JOIN sys.schemas s ON s.schema_id = t.schema_id
+         WHERE 1=1 ${schemaClause} ${tableClause}`,
+        params,
         o,
       ),
     ])
 
     const evMap = new Map<string, Array<'insert' | 'update' | 'delete'>>()
     for (const r of events) {
-      const name = String(r.name)
+      const key = `${String(r.schema_name)}.${String(r.name)}`
       const t = Number(r.event_type)
-      let arr = evMap.get(name)
+      let arr = evMap.get(key)
       if (!arr) {
         arr = []
-        evMap.set(name, arr)
+        evMap.set(key, arr)
       }
       if (t === 1) arr.push('insert')
       else if (t === 2) arr.push('update')
@@ -410,12 +420,13 @@ export const mssqlCatalog: CatalogAdapter = {
     const out: TriggerInfo[] = []
     for (const r of meta) {
       const name = String(r.name)
+      const key = `${String(r.schema_name)}.${name}`
       out.push({
         schema: S(r, 'schema_name'),
         name,
         table: String(r.table_name),
         timing: B(r, 'is_instead_of') ? 'instead_of' : 'after',
-        events: evMap.get(name) ?? [],
+        events: evMap.get(key) ?? [],
         enabled: !B(r, 'is_disabled'),
       })
     }

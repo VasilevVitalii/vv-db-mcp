@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig, ConfigError, type LoadResult } from './config/load.js'
 import { loadSecretsFile } from './config/secrets.js'
 import { ConnectionRegistry } from './connections/registry.js'
-import { createLogger, parseLogLevel } from './log.js'
+import { createLogger, parseLogLevel, type Masker } from './log.js'
 import { createMasker } from './errors/map.js'
 import { createServer } from './server.js'
 
@@ -21,8 +21,17 @@ const fmt = (a: unknown): string => {
     return String(a)
   }
 }
+
+// Маскер наполняется после загрузки конфига (registry.secrets); до этого stderr
+// пишется как есть. Все console.*/stderr проходят через него, чтобы секреты не
+// просочились в журнал (раздел 7.4 ТЗ) — иначе любой console.log внутри кода
+// вывел бы пароль без маскирования.
+let maskSecrets: Masker = (text) => text
+const setMasker = (m: Masker): void => {
+  maskSecrets = m
+}
 const toStderr = (...args: unknown[]): void => {
-  process.stderr.write(`${args.map(fmt).join(' ')}\n`)
+  process.stderr.write(`${maskSecrets(args.map(fmt).join(' '))}\n`)
 }
 console.log = toStderr
 console.info = toStderr
@@ -72,14 +81,21 @@ async function main(): Promise<void> {
   }
 
   const registry = new ConnectionRegistry(result.connections, result.maskSecrets)
-  const log = createLogger(parseLogLevel(process.env.VV_DB_MCP_LOG_LEVEL), createMasker(registry.secrets))
+  const masker = createMasker(registry.secrets)
+  setMasker(masker)
+  const log = createLogger(parseLogLevel(process.env.VV_DB_MCP_LOG_LEVEL), masker)
 
   const server = createServer({ registry, log })
   const transport = new StdioServerTransport()
   await server.connect(transport)
   log.info(`запущен: ${registry.list().length} подключений`)
 
+  // Идемпотентное завершение: SIGINT, SIGTERM и закрытие stdin могут прийти
+  // вместе — closeAll и таймер форса запускаются только один раз.
+  let shuttingDown = false
   const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return
+    shuttingDown = true
     const timer = setTimeout(() => {
       log.warn('закрытие подключений не уложилось в 5 с — принудительный выход')
       process.exit(0)
@@ -96,12 +112,12 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown())
   process.stdin.on('end', () => void shutdown())
 
+  // Случайно отклонённый промис не должен ронять сервер: фиксируем и продолжаем.
   process.on('unhandledRejection', (reason) => {
     log.error(`unhandledRejection: ${fmt(reason)}`)
-    process.exit(1)
   })
   process.on('uncaughtException', (err) => {
-    log.error(`uncaughtException: ${err.message}`)
+    log.error(`uncaughtException: ${fmt(err)}`)
     process.exit(1)
   })
 }

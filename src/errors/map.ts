@@ -1,32 +1,8 @@
 import type { TDbError } from 'vv-db-connection'
 import type { Masker } from '../log.js'
+import type { ToolError, ToolErrorKind } from '../tools/schemas.js'
 
 /** kind из пакета + собственные ошибки сервера (раздел 7.2 ТЗ). */
-export type ToolErrorKind =
-  | 'connect'
-  | 'query'
-  | 'tx'
-  | 'user'
-  | 'timeout'
-  | 'aborted'
-  | 'unknown_connection'
-  | 'invalid_argument'
-  | 'not_found'
-  | 'ambiguous'
-  | 'internal'
-
-/** Контракт ошибки инструмента (раздел 4.3 ТЗ). */
-export interface ToolError {
-  ok: false
-  error: {
-    kind: ToolErrorKind
-    code?: string
-    message: string
-    connection?: string
-    statementIndex?: number
-    outcomeUnknown?: boolean
-  }
-}
 
 /** Ошибка, которую обработчик бросает явно (не сбой СУБД). */
 export class ServerError extends Error {
