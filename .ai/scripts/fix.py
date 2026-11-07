@@ -5,7 +5,8 @@
 Ключ API — из ~/.hermes/.env (DEEPSEEK_API_KEY).
 
 Модель возвращает строгий JSON:
-  {"files":[{"path","content"}], "debt_add":[...], "agreed_add":[...], "summary":"..."}
+  {"files":[{"path","content"}], "debt_add":[...], "agreed_add":[...],
+   "results":[{"id","status","note"}], "summary":"..."}
 После применения прогоняется TEST_CMD; при провале вывод теста возвращается модели
 (до FIX_MAX_ITERS полных циклов). При исчерпании итераций изменения откатываются.
 При успешном применении (тесты зелёные и есть изменённые файлы) инкрементится версия
@@ -32,7 +33,13 @@ SYSTEM = (
     '{"files":[{"path":"относительный путь","content":"ПОЛНОЕ новое содержимое файла"}],\n'
     ' "debt_add":["текст нового пункта долга"],\n'
     ' "agreed_add":["текст нового принятого решения"],\n'
+    ' "results":[{"id":номер,"status":"статус","note":"краткая причина"}],\n'
     ' "summary":"супер-краткий дайджест (1-2 предложения)"}\n'
+    "results — по КАЖДОМУ замечанию из раздела «РЕВЬЮ» (id — номер из заголовка «## N. ТИП»). "
+    "status — один из: «исправлено полностью», «исправлено частично», «перенесено в .debt.md», "
+    "«перенесено в .agreed.md», «не подтверждено», «не исправлено». "
+    "note — только там, где без неё непонятно (не подтверждено / частично / не исправлено / долг / решение); "
+    "для «исправлено полностью» note не нужен.\n"
     "Правила: в files только реально меняемые файлы с полным содержимым; "
     "не выдумывай неизменённые части; не трогай node_modules/dist/сгенерированное; "
     "замечание «нет unit-теста на ветку» — исправление, а не долг: напиши тест в test/ и закрой через files; "
@@ -99,11 +106,11 @@ def dump_ts(project):
 
 
 def call(messages, env, key):
-    model = env.get("FIX_MODEL", "deepseek-v4-pro")
+    model = env.get("FIX_MODEL", "deepseek-flash")
     api_url = env.get("FIX_API_URL", "https://api.deepseek.com/v1/chat/completions")
     body = {
         "model": model,
-        "max_tokens": int(env.get("FIX_MAX_TOKENS", "24000")),
+        "max_tokens": int(env.get("FIX_MAX_TOKENS", "100000")),
         "temperature": 0.2,
         "messages": messages,
     }
@@ -128,6 +135,43 @@ def parse_json(text):
     if a == -1 or b <= a:
         raise ValueError("нет JSON-объекта в ответе модели")
     return json.loads(text[a:b + 1])
+
+
+VALID_STATUSES = {
+    "исправлено полностью", "исправлено частично", "перенесено в .debt.md",
+    "перенесено в .agreed.md", "не подтверждено", "не исправлено",
+}
+
+
+def scan_ids(scan_path):
+    """Номера замечаний из scan-файла (заголовки «## N. ТИП»), в порядке появления."""
+    ids = []
+    for line in open(scan_path, encoding="utf-8"):
+        m = re.match(r"^## (\d+)\.\s", line)
+        if m:
+            ids.append(int(m.group(1)))
+    return ids
+
+
+def format_results(ids, results_map, rolled_back):
+    """Строки «N. статус [— note]» по номерам из scan; пропущенные — «не обработано»."""
+    lines = []
+    for n in ids:
+        r = results_map.get(n)
+        if r is None:
+            lines.append(f"{n}. не обработано")
+            continue
+        status = str(r.get("status") or "не обработано").strip()
+        if status not in VALID_STATUSES:
+            status = "не обработано"
+        if rolled_back and status in ("исправлено полностью", "исправлено частично"):
+            status = "не исправлено"
+        note = (r.get("note") or "").strip()
+        line = f"{n}. {status}"
+        if note:
+            line += f" — {note}"
+        lines.append(line)
+    return lines
 
 
 def safe_path(project, rel):
@@ -279,7 +323,7 @@ def main():
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user_base}]
 
     applied_all = []
-    debt_add, agreed_add, summary = [], [], ""
+    debt_add, agreed_add, summary, results = [], [], "", []
     test_ok = False
 
     for it in range(1, args.max_iters + 1):
@@ -288,12 +332,13 @@ def main():
             data = parse_json(content)
         except ValueError as e:
             print(f"итерация {it}: {e}", file=sys.stderr)
-            data = {"files": [], "debt_add": [], "agreed_add": [],
+            data = {"files": [], "debt_add": [], "agreed_add": [], "results": [],
                     "summary": f"ошибка парсинга ответа: {e}"}
 
         files = data.get("files") or []
         debt_add = data.get("debt_add") or []
         agreed_add = data.get("agreed_add") or []
+        results = data.get("results") or []
         summary = data.get("summary") or summary
 
         changed = []
@@ -334,12 +379,26 @@ def main():
     append_numbered(args.debt, debt_add, scan_name)
     append_numbered(args.agreed, agreed_add, scan_name)
 
+    ids = scan_ids(args.scan)
+    results_map = {}
+    for r in results:
+        if isinstance(r, dict) and r.get("id") is not None:
+            try:
+                results_map[int(r["id"])] = r
+            except (TypeError, ValueError):
+                pass
+
     tail = scan_name
     if tail.startswith("scan-"):
         tail = tail[len("scan-"):]
     with open(out, "w") as f:
         f.write(f"# fix-{tail}\n\n")
         f.write(f"Вход: {os.path.basename(args.scan)}\n\n")
+        if ids:
+            f.write("Результаты по замечаниям:\n")
+            for line in format_results(ids, results_map, not test_ok):
+                f.write(line + "\n")
+            f.write("\n")
         f.write(result + "\n\n")
         if applied_all:
             f.write("Изменённые файлы:\n")
