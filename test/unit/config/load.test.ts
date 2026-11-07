@@ -84,6 +84,26 @@ describe('loadConfig: валидация конфига', () => {
     await expect(loadConfig(tmpFile('{'), new Map())).rejects.toThrow(ConfigError)
   })
 
+  it('битый JSON не утекает фрагмент исходника (с паролем) в сообщение', async () => {
+    // V8 (Node ≥ 20) вставляет в SyntaxError от JSON.parse фрагмент исходника
+    // («…"password":"…" is not valid JSON»), куда попадает литеральный пароль
+    // рядом с точкой ошибки. Маскер в этот момент ещё не создан, поэтому сообщение
+    // обязано содержать только позицию, без текста парсера.
+    const secret = 's3cret'
+    const bad = `{"connections":[{"kind":"pg","password":"${secret}","x":}]}`
+    let caught: unknown = null
+    try {
+      await loadConfig(tmpFile(bad), new Map())
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(ConfigError)
+    const msg = (caught as ConfigError).message
+    expect(msg).toContain('не является корректным JSON')
+    expect(msg).not.toContain('is not valid JSON')
+    expect(msg).not.toContain(secret)
+  })
+
   it('корректный конфиг даёт connections с title/user из DbConnection', async () => {
     const r = await loadConfig(tmpFile(pg('p')), new Map())
     expect(r.connections).toHaveLength(1)

@@ -188,7 +188,9 @@ export const pgCatalog: CatalogAdapter = {
     })
 
     const desc: TableDescription = {
-      schema: o.schema,
+      // Фактически прочитанная схема (o.schema ?? 'public'), а не входной аргумент:
+      // при schema = null запрос читал 'public', и ответ не должен говорить null.
+      schema,
       name: o.table,
       objectType,
       comment,

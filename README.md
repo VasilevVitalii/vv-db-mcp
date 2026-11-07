@@ -106,7 +106,7 @@ DST_PASSWORD=...
 | `list_triggers` | Триггеры. |
 | `list_sequences` | Последовательности/генераторы. |
 | `get_definition` | Текст определения объекта (view/function/procedure/trigger; DDL или body — зависит от СУБД). |
-| `sample_rows` | Первые N строк таблицы. |
+| `sample_rows` | Первые N строк таблицы или представления. |
 
 Инструменты чтения помечены `readOnlyHint: true`; `execute_sql`/`execute_transaction` —
 `destructiveHint: true`. Все инструменты принимают `connection` (имя подключения).
@@ -130,6 +130,11 @@ DST_PASSWORD=...
 - **Firebird ≥ 3** — `list_routines` опирается на `RDB$PACKAGE_NAME`.
 - **Oracle ≥ 12c** — `all_users.oracle_maintained` (для исключения системных схем) появился в 12c.
 - MSSQL — без дополнительных ограничений по версии.
+
+### Примечания по окружению
+
+- **Node 18**: поддерживается только как рантайм для уже собранного `dist/`; сборка и тесты требуют Node 20+ (dev-зависимости: `@types/node`, `typescript`, `vitest`).
+- **`TZ=UTC`**: для корректной сериализации `timestamp without time zone`, `datetime` и Oracle `DATE` через `toISOString()` запускайте сервер с `TZ=UTC`; при других зонах наивные даты могут смещаться.
 
 ## Разработка
 

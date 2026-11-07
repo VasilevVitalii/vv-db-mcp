@@ -33,6 +33,22 @@ describe('toDbParams', () => {
     expect(() => toDbParams([{ name: 'b', value: 'a', as: 'binary_base64' }])).toThrow()
   })
 
+  it('пустая строка base64 → пустой Buffer (регрессия)', () => {
+    const [p] = toDbParams([{ name: 'b', value: '', as: 'binary_base64' }])
+    expect(Buffer.isBuffer(p.value)).toBe(true)
+    expect((p.value as Buffer).length).toBe(0)
+  })
+
+  it('as=bigint с пустой/пробельной строкой → invalid_argument', () => {
+    expect(() => toDbParams([{ name: 'b', value: '', as: 'bigint' }])).toThrow(/непустую строку/)
+    expect(() => toDbParams([{ name: 'b', value: '   ', as: 'bigint' }])).toThrow(/непустую строку/)
+  })
+
+  it('direction=out с as и без value не требует значения и не выставляет value', () => {
+    const [p] = toDbParams([{ name: 'd', direction: 'out', as: 'date' }])
+    expect(p).toEqual({ name: 'd', direction: 'out' })
+  })
+
   it('без as — value прозрачно', () => {
     const [p] = toDbParams([{ name: 'x', value: 42 }])
     expect(p.value).toBe(42)

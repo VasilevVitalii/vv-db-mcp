@@ -401,7 +401,7 @@ export const listTriggersTool = defineTool({
   name: 'list_triggers',
   title: 'list_triggers',
   description:
-    'Триггеры таблиц и представлений (в MSSQL — только таблиц; триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before).',
+    'Триггеры таблиц и представлений (в MSSQL — только таблиц; триггеры уровня базы Firebird и DDL-триггеры исключены). timing отражает реальность СУБД (в MSSQL нет before). Триггеры PostgreSQL только на TRUNCATE отдаются с events: [] — схема events не включает truncate.',
   input: z.strictObject({
     connection: connSchema,
     schema: schemaParamSchema.optional(),

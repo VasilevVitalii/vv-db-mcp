@@ -80,9 +80,11 @@ export function registerAll(server: McpServer, ctx: ToolCtx): void {
           }
         } catch (e) {
           const err = toToolError(e, ctx.registry.secrets)
+          const text = formatErrorText(err)
+          ctx.log.debug(`${t.name}: ${text}`)
           return {
             isError: true as const,
-            content: [{ type: 'text' as const, text: formatErrorText(err) }],
+            content: [{ type: 'text' as const, text }],
             structuredContent: err as unknown as Record<string, unknown>,
           }
         }

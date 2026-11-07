@@ -70,7 +70,7 @@ function isTxConnectionLost(code?: string): boolean {
   if (code === 'COMMIT_TIMEOUT' || code === 'FB_CONN_LOST') return true
   if (/^08/.test(code)) return true // pg SQLSTATE class 08 — connection exception
   if (/^57P0[123]$/.test(code)) return true // pg admin_shutdown / crash_shutdown / cannot_connect_now
-  if (/^NJS-/.test(code)) return true // oracledb network errors
+  if (/^NJS-(500|501|509|521)$/.test(code)) return true // oracledb Net layer: соединение закрыто/потеряно (без bind/config/TLS-кодов)
   if (/^ORA-0311[345]$/.test(code) || code === 'ORA-12170') return true // oracle end-of-file / network timeout
   // tedious сетевые коды (потеря связи), без ELOGIN/EREQUEST (auth/протокол — не обрыв)
   if (/^E(SOCKET|CONNRESET|CONNREFUSED|TIMEOUT|CONNABORTED|NETUNREACH|HOSTUNREACH|NOTFOUND|CONNCLOSED)$/.test(code)) return true
@@ -266,7 +266,7 @@ export async function runTx(
 
   if (!result.ok) {
     const err = result.error
-    const statementIndex = err.kind === 'query' || err.kind === 'user' ? currentIndex : undefined
+    const statementIndex = (err.kind === 'query' || err.kind === 'user') && currentIndex >= 0 ? currentIndex : undefined
     throwDbError(err, {
       connection: opts.connection,
       statementIndex,

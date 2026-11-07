@@ -12,7 +12,7 @@ export const executeSqlTool = defineTool({
   title: 'execute_sql',
   description:
     'Выполняет произвольный SQL (чтение, DML, DDL, вызов процедур) на подключении. Параметры — :name (раздел 5). ' +
-    'Результат: массив наборов resultSets; SELECT даёт columns + rows; DML — набор с пустыми columns и rowsAffected; DDL — пустой набор. ' +
+    'Результат: массив наборов resultSets; SELECT даёт columns + rows; DML — набор с пустыми columns и rowsAffected; DDL — как правило набор с rowsAffected без columns (если драйвер не прислал событий, resultSets пуст). ' +
     'Вендорные оговорки: несколько операторов в одном sql — MSSQL даёт по набору на оператор (автокоммит каждого), PostgreSQL — только без params ' +
     '(одна неявная транзакция, сбой откатывает всё сообщение), Oracle и Firebird — один оператор (PL/SQL-блок / EXECUTE BLOCK); DDL в Oracle неявно коммитит. ' +
     'Для гарантированной атомарности используй execute_transaction.',

@@ -153,6 +153,8 @@ export const oraCatalog: CatalogAdapter = {
     })
 
     const desc: TableDescription = {
+      // Oracle без schema читает всех владельцев — дефолтной схемы нет, поэтому
+      // `null` возвращается честно (в отличие от mssql/pg с 'dbo'/'public').
       schema: o.schema,
       name: o.table,
       objectType,
@@ -248,7 +250,7 @@ export const oraCatalog: CatalogAdapter = {
     const [rows, pkIdx] = await Promise.all([
       queryRows(
         db,
-        `SELECT i.index_name AS name, i.uniqueness AS uniqueness,
+        `SELECT i.owner AS owner, i.index_name AS name, i.uniqueness AS uniqueness,
                 ic.column_name AS column_name, ic.descend AS descend
          FROM all_indexes i
          JOIN all_ind_columns ic ON ic.index_owner = i.owner AND ic.index_name = i.index_name
@@ -259,7 +261,7 @@ export const oraCatalog: CatalogAdapter = {
       ),
       queryRows(
         db,
-        `SELECT c.index_name AS index_name FROM all_constraints c
+        `SELECT c.index_owner AS owner, c.index_name AS index_name FROM all_constraints c
          WHERE (UPPER(c.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(c.table_name) = UPPER(:table_name)
            AND c.constraint_type = 'P' AND c.index_name IS NOT NULL`,
         [p('schema', schema), p('table_name', o.table)],
@@ -267,19 +269,23 @@ export const oraCatalog: CatalogAdapter = {
       ),
     ])
 
-    const pkIndexes = new Set(pkIdx.map((r) => S(r, 'index_name')!))
+    // Индекс и PK сопоставляются по владельцу индекса: у индекса это i.owner, у
+    // ограничения — c.index_owner (а не c.owner/владелец таблицы). Индекс, обслуживающий
+    // PK, может лежать в другой схеме, и имя индекса уникально только внутри владельца.
+    const pkIndexes = new Set(pkIdx.map((r) => `${S(r, 'owner')}|${S(r, 'index_name')}`))
     const map = new Map<string, IndexInfo>()
     for (const r of rows) {
       const name = S(r, 'name')!
-      let idx = map.get(name)
+      const key = `${S(r, 'owner')}|${name}`
+      let idx = map.get(key)
       if (!idx) {
         idx = {
           name,
           unique: S(r, 'uniqueness')!.toUpperCase() === 'UNIQUE',
-          primary: pkIndexes.has(name),
+          primary: pkIndexes.has(key),
           columns: [],
         }
-        map.set(name, idx)
+        map.set(key, idx)
       }
       idx.columns.push({ name: S(r, 'column_name'), descending: S(r, 'descend')!.toUpperCase() === 'DESC' })
     }
@@ -294,22 +300,24 @@ export const oraCatalog: CatalogAdapter = {
     if (want === undefined || want === 'primary_key' || want === 'unique') {
       const rows = await queryRows(
         db,
-        `SELECT con.constraint_name AS name, con.constraint_type AS type, col.column_name AS column_name
+        `SELECT con.owner AS owner, con.constraint_name AS name, con.constraint_type AS type, col.column_name AS column_name
          FROM all_constraints con
          JOIN all_cons_columns col ON col.owner = con.owner AND col.constraint_name = con.constraint_name
          WHERE (UPPER(con.owner) = UPPER(:schema) OR :schema IS NULL) AND UPPER(con.table_name) = UPPER(:table_name) AND con.constraint_type IN ('P','U')
-         ORDER BY con.constraint_name, col.position`,
+         ORDER BY con.owner, con.constraint_name, col.position`,
         [p('schema', schema), p('table_name', o.table)],
         o,
       )
+      // Ограничение группируется по (owner, name): имя уникально только внутри схемы.
       const map = new Map<string, ConstraintInfo>()
       for (const r of rows) {
         const name = S(r, 'name')!
+        const key = `${S(r, 'owner')}|${name}`
         const type = S(r, 'type')! === 'P' ? ('primary_key' as const) : ('unique' as const)
-        let c = map.get(name)
+        let c = map.get(key)
         if (!c) {
           c = { name, type, columns: [], expression: null }
-          map.set(name, c)
+          map.set(key, c)
         }
         c.columns.push(S(r, 'column_name')!)
       }

@@ -136,7 +136,17 @@ export async function loadConfig(
   try {
     parsed = JSON.parse(raw)
   } catch (e) {
-    throw new ConfigError([`файл конфига ${cfgPath} не является корректным JSON: ${(e as Error).message}`])
+    // V8 (Node ≥ 20) вставляет в SyntaxError от JSON.parse фрагмент исходника
+    // («…"password":"…" is not valid JSON»): литеральный секрет рядом с точкой
+    // ошибки утёк бы в stderr, т.к. маскер создаётся только после загрузки.
+    // Отдаём только позицию, без текста парсера.
+    const msg = e instanceof Error ? e.message : String(e)
+    const m = /line (\d+) column (\d+)/.exec(msg)
+    throw new ConfigError([
+      m
+        ? `файл конфига ${cfgPath} не является корректным JSON (строка ${m[1]}, колонка ${m[2]})`
+        : `файл конфига ${cfgPath} не является корректным JSON`,
+    ])
   }
 
   const ctx: SubstituteCtx = { secrets, maskSecrets: new Set(), connSecrets: new Map(), connIndex: -1 }

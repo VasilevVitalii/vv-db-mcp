@@ -45,7 +45,9 @@ describe.skipIf(!connectAvailable())('интеграционные: катало
     const entry = () => h.entries[kind]
     const db = () => entry()!.db
     const cat = () => h.catalogs[kind]
-    const schema = () => DEFAULT_SCHEMA[kind]
+    // Для Oracle передаём фактическую схему (текущий пользователь в верхнем регистре),
+    // чтобы прямые вызовы адаптера не смешивали одноимённые таблицы разных владельцев.
+    const schema = () => (kind === 'ora' ? entry()!.user.toUpperCase() : DEFAULT_SCHEMA[kind])
     const opts = () => ({ timeoutMs: 30000, connection: kind })
 
     describe.skipIf(!hasKind(kind))(kind, () => {
@@ -80,6 +82,8 @@ describe.skipIf(!connectAvailable())('интеграционные: катало
         expect(nameCol!.nullable).toBe(false)
         const idCol = d.columns.find((c) => c.name.toLowerCase() === 'id')
         expect(idCol!.isPrimaryKey).toBe(true)
+        // Позиции колонок — 1-based во всех СУБД (Firebird был 0-based).
+        expect(Math.min(...d.columns.map((c) => c.position))).toBe(1)
       })
 
       if (kind === 'pg') {

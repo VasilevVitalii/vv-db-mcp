@@ -135,8 +135,8 @@ function pgCategory(t: string): TypeCategory {
 function oraCategory(t: string, scale?: number | null): TypeCategory {
   if (t === 'number') return scale == null ? 'decimal' : scale <= 0 ? 'integer' : 'decimal'
   if (['float', 'binary_float', 'binary_double'].includes(t)) return 'float'
-  if (['char', 'varchar2', 'nchar', 'nvarchar2', 'clob', 'long'].includes(t)) return 'string'
-  if (['raw', 'blob', 'bfile'].includes(t)) return 'binary'
+  if (['char', 'varchar2', 'nchar', 'nvarchar2', 'clob', 'nclob', 'long'].includes(t)) return 'string'
+  if (['raw', 'blob', 'bfile', 'long raw'].includes(t)) return 'binary'
   if (t === 'boolean') return 'boolean'
   // Oracle DATE содержит время (приложение B)
   if (t === 'date' || t.startsWith('timestamp') || t.startsWith('interval')) return 'timestamp'

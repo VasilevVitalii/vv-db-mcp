@@ -109,7 +109,14 @@ export interface DefinitionInfo {
   definitionKind: 'full' | 'body'
 }
 
-/** Контракт адаптера каталога (раздел 8.3 ТЗ). */
+/**
+ * Контракт адаптера каталога (раздел 8.3 ТЗ).
+ *
+ * `schema: string | null` в describeTable/listIndexes/listConstraints: mssql/pg при
+ * `null` подставляют дефолтную схему ('dbo'/'public') и возвращают фактическое
+ * значение; Oracle/Firebird под `null` читают всех владельцев (дефолтной схемы у
+ * Oracle нет, у Firebird схем нет) и честно возвращают `null`.
+ */
 export interface CatalogAdapter {
   listSchemas(db: DbConnection, o: Opts): Promise<string[]>
   listTables(db: DbConnection, o: Opts & { schema?: string }): Promise<TableRef[]>

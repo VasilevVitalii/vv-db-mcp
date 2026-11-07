@@ -107,13 +107,14 @@ describe('toToolError', () => {
 })
 
 describe('formatErrorText', () => {
-  it('собирает строку с kind/code/statementIndex/outcomeUnknown/подсказкой', () => {
+  it('собирает строку с kind/code/connection/statementIndex/outcomeUnknown/подсказкой', () => {
     const txt = formatErrorText({
       ok: false,
-      error: { kind: 'query', code: 'X42', message: 'm', statementIndex: 0, outcomeUnknown: true },
+      error: { kind: 'query', code: 'X42', message: 'm', connection: 'c', statementIndex: 0, outcomeUnknown: true },
     })
     expect(txt).toContain('[query] m')
     expect(txt).toContain('code: X42')
+    expect(txt).toContain('connection: c')
     expect(txt).toContain('statementIndex: 0')
     expect(txt).toContain('outcomeUnknown')
     expect(txt).toContain('Ошибка выполнения запроса')

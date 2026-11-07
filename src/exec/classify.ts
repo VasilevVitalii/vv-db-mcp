@@ -43,6 +43,9 @@ export function isReadOnlyStatement(sql: string): boolean {
   if (kw === 'SELECT') {
     // `SELECT … INTO` пишет (создаёт/заполняет таблицу). Ложное «пишет» при
     // литерале 'INTO' безопасно: эвристика склоняется к пишущему исходу.
+    // Ограничение: `SELECT f()` с побочным эффектом (PG-функция с DML, nextval)
+    // считается чтением — при timeout/abort такой вызов не получит outcomeUnknown.
+    // Эвристика заведомо приближённая.
     return !/\bINTO\b/i.test(s)
   }
   if (kw === 'WITH') {
@@ -162,7 +165,8 @@ export function splitStatements(sql: string): string[] {
 
 /** Первый оператор батча потенциально пишет (не чистое чтение). */
 export function firstStatementIsWrite(sql: string): boolean {
-  return !isReadOnlyStatement(sql)
+  const first = splitStatements(sql)[0] ?? ''
+  return !isReadOnlyStatement(first)
 }
 
 /** Есть ли после первого оператора хотя бы один потенциально пишущий. */

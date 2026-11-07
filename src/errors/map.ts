@@ -123,6 +123,7 @@ export function formatErrorText(err: ToolError): string {
   const e = err.error
   const lines: string[] = [`[${e.kind}] ${e.message}`]
   if (e.code !== undefined) lines.push(`code: ${e.code}`)
+  if (e.connection !== undefined) lines.push(`connection: ${e.connection}`)
   if (e.statementIndex !== undefined) lines.push(`statementIndex: ${e.statementIndex}`)
   if (e.outcomeUnknown) lines.push(OUTCOME_UNKNOWN_TEXT)
   const hint = HINTS[e.kind]

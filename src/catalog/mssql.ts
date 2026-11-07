@@ -164,7 +164,9 @@ export const mssqlCatalog: CatalogAdapter = {
     })
 
     const desc: TableDescription = {
-      schema: o.schema,
+      // Возвращаем фактически прочитанную схему (o.schema ?? 'dbo'), а не входной
+      // аргумент: при schema = null запрос читал 'dbo', и ответ не должен говорить null.
+      schema,
       name: o.table,
       objectType,
       comment,

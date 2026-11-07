@@ -9,8 +9,8 @@ node_modules/
 .secret
 *.secret
 
-# постановки задач
-.issue*.md
-
 # артефакты сборки
 dist/
+
+# ai
+ai/.env
