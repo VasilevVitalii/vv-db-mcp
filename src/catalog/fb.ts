@@ -88,8 +88,11 @@ function fbDataType(fieldType: number | null, subType: number | null): string {
  * 3=DELETE); значение = битовое поле − 1. Кодирование зависит от порядка событий
  * в DDL (BEFORE UPDATE OR INSERT ≠ BEFORE INSERT OR UPDATE), поэтому таблица не
  * покрывает все комбинации — декодируем по формуле.
+ *
+ * Экспортируется для unit-тестов: значения 25 (BEFORE INSERT OR DELETE) и 11
+ * (BEFORE UPDATE OR INSERT) различаются порядком событий, хотя состав совпадает.
  */
-function fbTrigger(type: number): { timing: 'before' | 'after'; events: Array<'insert' | 'update' | 'delete'> } {
+export function fbTrigger(type: number): { timing: 'before' | 'after'; events: Array<'insert' | 'update' | 'delete'> } {
   const v = type + 1
   const timing: 'before' | 'after' = (v & 1) === 0 ? 'before' : 'after'
   const ev = (slot: number): 'insert' | 'update' | 'delete' | null =>

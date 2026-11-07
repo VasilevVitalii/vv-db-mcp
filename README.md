@@ -109,7 +109,7 @@ DST_PASSWORD=...
 | `sample_rows` | Первые N строк таблицы или представления. |
 
 Инструменты чтения помечены `readOnlyHint: true`; `execute_sql`/`execute_transaction` —
-`destructiveHint: true`. Все инструменты принимают `connection` (имя подключения).
+`destructiveHint: true`. Все инструменты, кроме `list_connections`, принимают `connection` (имя подключения).
 `timeoutMs` принимают `ping`, `version`, `execute_sql`, `execute_transaction` и
 `sample_rows` (у метаданных-инструментов время ожидания берётся из лимита
 подключения); `maxRows` — `execute_sql`/`execute_transaction`. `sample_rows.limit`

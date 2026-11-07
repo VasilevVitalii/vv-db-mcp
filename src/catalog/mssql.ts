@@ -455,7 +455,7 @@ export const mssqlCatalog: CatalogAdapter = {
   },
 
   async getDefinitions(db, o) {
-    const typeClause: Record<string, string> = {
+    const typeClause: Record<DefinitionInfo['objectType'], string> = {
       view: "o.type = 'V'",
       procedure: "o.type = 'P'",
       function: "o.type IN ('FN','IF','TF')",
