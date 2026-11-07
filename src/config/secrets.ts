@@ -36,7 +36,9 @@ export async function loadSecretsFile(path: string): Promise<SecretsLoadResult> 
   const [content, st] = await Promise.all([readFile(path, 'utf8'), stat(path)])
   const map = parseSecrets(content)
   let warning: string | undefined
-  if (isWorldReadable(st.mode)) {
+  // На Windows нет POSIX-прав: stat().mode всегда содержит group/other read-биты,
+  // поэтому предупреждение было бы ложным почти всегда (см. .ai/.agreed.md п.14).
+  if (process.platform !== 'win32' && isWorldReadable(st.mode)) {
     warning = `файл секретов ${path} читается группой или всеми; рекомендуется chmod 600`
   }
   return { map, warning }

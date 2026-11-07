@@ -122,6 +122,26 @@ function fakeTxDbError(error: TDbError): DbConnection {
   } as unknown as DbConnection
 }
 
+// exec() бросает ошибку на операторе с индексом failIndex — драйвер пробрасывает
+// её наружу как { ok: false, error }. Позволяет проверить statementIndex>0.
+function fakeTxDbExecThrows(failIndex: number, error: TDbError): DbConnection {
+  return {
+    execTxDynamic: async (cb: TDbTxCb<{ committed: true; statements: unknown[] }>) => {
+      let i = 0
+      const exec: TDbTxExec = async () => {
+        if (i++ === failIndex) throw error
+        return { rows: [] }
+      }
+      try {
+        const result = await cb(exec, new AbortController().signal)
+        return { ok: true, result }
+      } catch (e) {
+        return { ok: false, error: e as TDbError }
+      }
+    },
+  } as unknown as DbConnection
+}
+
 describe('runTx', () => {
   it('обрезает implicitResults по maxRows и ставит truncated (регрессия)', async () => {
     const six = Array.from({ length: 6 }, (_, i) => ({ n: i }))
@@ -155,5 +175,33 @@ describe('runTx', () => {
     const err = await catchError(runTx(db, [{ sql: 'SELECT 1', params: [] }], { timeoutMs: 5000, maxRows: 5, limits: LIMITS }))
     expect(err.toolError.error.kind).toBe('query')
     expect(err.toolError.error.statementIndex).toBeUndefined()
+  })
+
+  it('ошибка query на 2-м операторе → statementIndex: 1', async () => {
+    const db = fakeTxDbExecThrows(1, { kind: 'query', message: 'bad sql' })
+    const err = await catchError(
+      runTx(
+        db,
+        [
+          { sql: 'SELECT 1', params: [] },
+          { sql: 'SELECT bad', params: [] },
+        ],
+        { timeoutMs: 5000, maxRows: 5, limits: LIMITS },
+      ),
+    )
+    expect(err.toolError.error.kind).toBe('query')
+    expect(err.toolError.error.statementIndex).toBe(1)
+  })
+
+  it('COMMIT_TIMEOUT → outcomeUnknown true', async () => {
+    const db = fakeTxDbError({ kind: 'tx', code: 'COMMIT_TIMEOUT', message: 'commit timeout' })
+    const err = await catchError(runTx(db, [{ sql: 'SELECT 1', params: [] }], { timeoutMs: 5000, maxRows: 5, limits: LIMITS }))
+    expect(err.toolError.error.outcomeUnknown).toBe(true)
+  })
+
+  it('aborted → outcomeUnknown true', async () => {
+    const db = fakeTxDbError({ kind: 'aborted', message: 'aborted' })
+    const err = await catchError(runTx(db, [{ sql: 'SELECT 1', params: [] }], { timeoutMs: 5000, maxRows: 5, limits: LIMITS }))
+    expect(err.toolError.error.outcomeUnknown).toBe(true)
   })
 })
