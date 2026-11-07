@@ -28,15 +28,17 @@ SYSTEM = (
     "Ты — старший программист. Исправь замечания ревью в коде проекта. "
     "Верни СТРОГО ОДИН JSON-объект (без markdown-обёртки и текста вне JSON):\n"
     '{"files":[{"path":"относительный путь","content":"ПОЛНОЕ новое содержимое файла"}],\n'
-    ' "debt_add":["новый пункт долга"],\n'
-    ' "agreed_add":["новое принятое решение"],\n'
+    ' "debt_add":["текст нового пункта долга"],\n'
+    ' "agreed_add":["текст нового принятого решения"],\n'
     ' "summary":"супер-краткий дайджест (1-2 предложения)"}\n'
     "Правила: в files только реально меняемые файлы с полным содержимым; "
     "не выдумывай неизменённые части; не трогай node_modules/dist/сгенерированное; "
     "замечание «нет unit-теста на ветку» — исправление, а не долг: напиши тест в test/ и закрой через files; "
     "в debt_add клади только то, что тестом закрыть нельзя (внешние СУБД, тайминги/гонки, приватный API драйверов); "
     "пункт, который не баг или уже решён владельцем, — не меняй, причину клади в agreed_add; "
-    "пункт из «ПРИНЯТЫЙ ДОЛГ» — не меняй. Пиши только корректный TypeScript."
+    "пункт из «ПРИНЯТЫЙ ДОЛГ» — не меняй. "
+    "В debt_add/agreed_add давай только текст пункта (без номера и имени файла — их допишет скрипт как «N. scan-файл.md.»). "
+    "Пиши только корректный TypeScript."
 )
 
 EXTRA_FILES = ["package.json", "tsconfig.json", "README.md"]
@@ -144,13 +146,30 @@ def run_gate(cmd, project):
     return r.returncode, out[-6000:]
 
 
-def append_lines(path, items):
+def next_number(path):
+    """Следующий свободный номер пункта в файле (макс. «N.» в начале строки + 1)."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        return 1
+    nums = re.findall(r"^(\d+)\. scan-", text, re.MULTILINE)
+    return max(int(x) for x in nums) + 1 if nums else 1
+
+
+def append_numbered(path, items, scan_name):
+    """Дописать пункты в формате «N. scan-файл.md. <текст>» со сквозной нумерацией.
+
+    scan_name — имя scan-файла (basename), откуда пункты возникли. Модель отдаёт
+    только текст пункта; номер и префикс «scan-файл.md.» дописывает этот код.
+    """
     if not items:
         return
-    with open(path, "a") as f:
+    n = next_number(path)
+    with open(path, "a", encoding="utf-8") as f:
         f.write("\n")
         for it in items:
-            f.write(f"- {str(it).strip()}\n")
+            f.write(f"{n}. {scan_name}. {str(it).strip()}\n\n")
+            n += 1
 
 
 def rollback(project, changed):
@@ -306,10 +325,11 @@ def main():
     else:
         result = summary or "без изменений"
 
-    append_lines(args.debt, debt_add)
-    append_lines(args.agreed, agreed_add)
+    scan_name = os.path.basename(args.scan)
+    append_numbered(args.debt, debt_add, scan_name)
+    append_numbered(args.agreed, agreed_add, scan_name)
 
-    tail = os.path.basename(args.scan)
+    tail = scan_name
     if tail.startswith("scan-"):
         tail = tail[len("scan-"):]
     with open(out, "w") as f:
