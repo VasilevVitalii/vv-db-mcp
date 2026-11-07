@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scan.sh — Opus-ревью проекта: собрать дамп + решения/долг + прошлый scan → ai/data/scan-<дата>-<номер>.md
+# scan.sh — Opus-ревью проекта: собрать дамп + решения/долг + прошлый scan → .ai/data/scan-<дата>-<номер>.md
 set -euo pipefail
 
 AI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

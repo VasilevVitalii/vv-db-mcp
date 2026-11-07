@@ -13,4 +13,4 @@ node_modules/
 dist/
 
 # ai
-ai/.env
+.ai/.env

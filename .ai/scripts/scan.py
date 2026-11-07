@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """scan.py — Opus-ревью TypeScript/Node-проекта через RouterAI (архитектор цикла scan/fix).
 
-Настройки из ai/.env: SCAN_API_URL, SCAN_MODEL, SCAN_EFFORT, SCAN_MAX_TOKENS.
+Настройки из .ai/.env: SCAN_API_URL, SCAN_MODEL, SCAN_EFFORT, SCAN_MAX_TOKENS.
 Ключ API — из ~/.hermes/.env (HERMES_CUSTOM_ROUTERAI_RU_API_KEY).
 
 Ключевой параметр — reasoning_effort: "low": без него opus-5.5 уходит в runaway-thinking

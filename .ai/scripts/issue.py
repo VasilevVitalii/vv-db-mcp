@@ -10,7 +10,7 @@
   2 tech   (Opus):     .issue-human.md + .issue-ai.md → .issue-ai-tech.md (техТЗ).
   3 review (GPT):      .issue-human.md + .issue-ai.md + .issue-ai-tech.md → .issue-ai-review.md.
 
-Настройки из ai/.env (ISSUE_*). Ключи из ~/.hermes/.env:
+Настройки из .ai/.env (ISSUE_*). Ключи из ~/.hermes/.env:
   DeepSeek — DEEPSEEK_API_KEY; Opus/GPT — HERMES_CUSTOM_ROUTERAI_RU_API_KEY.
 """
 import argparse

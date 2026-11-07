@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# fix.sh — DeepSeek исправляет замечания последнего scan-файла → ai/data/fix-<тот же хвост>.md
+# fix.sh — DeepSeek исправляет замечания последнего scan-файла → .ai/data/fix-<тот же хвост>.md
+# При успешном фиксе (есть изменения, тесты зелёные) версия в package.json инкрементится и делается git-коммит.
 set -euo pipefail
 
 AI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

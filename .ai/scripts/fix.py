@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """fix.py — DeepSeek исправляет замечания последнего scan-файла (программист цикла scan/fix).
 
-Настройки из ai/.env: FIX_API_URL, FIX_MODEL, FIX_MAX_TOKENS, FIX_MAX_ITERS, TEST_CMD, BUILD_CMD.
+Настройки из .ai/.env: FIX_API_URL, FIX_MODEL, FIX_MAX_TOKENS, FIX_MAX_ITERS, TEST_CMD, BUILD_CMD.
 Ключ API — из ~/.hermes/.env (DEEPSEEK_API_KEY).
 
 Модель возвращает строгий JSON:
   {"files":[{"path","content"}], "debt_add":[...], "agreed_add":[...], "summary":"..."}
 После применения прогоняется TEST_CMD; при провале вывод теста возвращается модели
 (до FIX_MAX_ITERS полных циклов). При исчерпании итераций изменения откатываются.
+При успешном применении (тесты зелёные и есть изменённые файлы) инкрементится версия
+в package.json (+1 к третьей триаде; если она стала 10 — +1 ко второй, третья = 0)
+и делается git-коммит: изменённые файлы + package.json + fix-отчёт + .agreed/.debt.
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -160,6 +164,67 @@ def rollback(project, changed):
                 pass
 
 
+def git(project, *args):
+    """git-команда в каталоге проекта; при ошибке печатает stderr, но не падает."""
+    r = subprocess.run(["git", *args], cwd=project, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"git {' '.join(args)}: {(r.stderr or '').strip()}", file=sys.stderr)
+    return r.returncode
+
+
+def bump_version(project):
+    """Инкремент версии в package.json: +1 к третьей триаде; если она стала 10 — +1 ко второй, третья = 0.
+
+    Возвращает новую версию строкой или None, если package.json нет / версию не распарсить.
+    """
+    pkg = os.path.join(project, "package.json")
+    if not os.path.isfile(pkg):
+        return None
+    text = open(pkg, encoding="utf-8").read()
+    m = re.search(r'"version"\s*:\s*"([^"]+)"', text)
+    if not m:
+        return None
+    try:
+        nums = [int(x) for x in m.group(1).split(".")]
+    except ValueError:
+        return None
+    while len(nums) < 3:
+        nums.append(0)
+    major, minor, patch = nums[0], nums[1], nums[2]
+    patch += 1
+    if patch == 10:
+        patch = 0
+        minor += 1
+    new_ver = f"{major}.{minor}.{patch}"
+    text = text[:m.start(1)] + new_ver + text[m.end(1):]
+    with open(pkg, "w", encoding="utf-8") as f:
+        f.write(text)
+    return new_ver
+
+
+def commit_fix(project, applied_all, out, args, debt_add, agreed_add, tail, summary, new_ver):
+    """Коммит успешного фикса: изменённые файлы + package.json (версия) + fix-отчёт + .agreed/.debt (если менялись)."""
+    paths = [os.path.relpath(p, project) for p, _ in applied_all]
+    if new_ver:
+        paths.append("package.json")
+    paths.append(os.path.relpath(out, project))
+    if debt_add:
+        paths.append(os.path.relpath(args.debt, project))
+    if agreed_add:
+        paths.append(os.path.relpath(args.agreed, project))
+    seen, uniq = set(), []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    git(project, "add", "--", *uniq)
+    short = " ".join((summary or "исправлены замечания ревью").split())[:100]
+    msg = f"fix: {short} [scan-{tail}]"
+    if new_ver:
+        msg += f" (v{new_ver})"
+    git(project, "commit", "-m", msg)
+
+
 def main():
     env = load_env(ENV_FILE)
     ap = argparse.ArgumentParser(description=__doc__,
@@ -266,6 +331,12 @@ def main():
         f.write(f"\nТесты: {'OK' if test_ok else 'FAILED (откат)'}\n")
 
     print(f"SAVED: {out}")
+
+    if test_ok and applied_all:
+        new_ver = bump_version(project)
+        commit_fix(project, applied_all, out, args, debt_add, agreed_add, tail, summary, new_ver)
+        if new_ver:
+            print(f"VERSION: {new_ver}")
 
 
 if __name__ == "__main__":
