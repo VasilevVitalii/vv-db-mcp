@@ -16,3 +16,4 @@ dist/
 .ai/.env
 .ai/scripts/__pycache__/
 __pycache__/
+.ai/price.csv

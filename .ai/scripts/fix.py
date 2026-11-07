@@ -21,6 +21,8 @@ import sys
 import urllib.error
 import urllib.request
 
+import price
+
 AI_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_FILE = os.path.join(AI_DIR, ".env")
 
@@ -97,14 +99,16 @@ def dump_ts(project):
 
 
 def call(messages, env, key):
+    model = env.get("FIX_MODEL", "deepseek-v4-pro")
+    api_url = env.get("FIX_API_URL", "https://api.deepseek.com/v1/chat/completions")
     body = {
-        "model": env.get("FIX_MODEL", "deepseek-v4-pro"),
+        "model": model,
         "max_tokens": int(env.get("FIX_MAX_TOKENS", "24000")),
         "temperature": 0.2,
         "messages": messages,
     }
     req = urllib.request.Request(
-        env.get("FIX_API_URL", "https://api.deepseek.com/v1/chat/completions"),
+        api_url,
         data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
@@ -115,6 +119,7 @@ def call(messages, env, key):
     except urllib.error.HTTPError as e:
         print("HTTP", e.code, e.read().decode()[:2000], file=sys.stderr)
         raise SystemExit(1)
+    price.record_call(data.get("usage", {}), data.get("model") or model, api_url, "F")
     return data["choices"][0]["message"].get("content") or ""
 
 

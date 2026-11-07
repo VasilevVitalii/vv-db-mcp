@@ -21,6 +21,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import price
+
 AI_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_FILE = os.path.join(AI_DIR, ".env")
 
@@ -113,6 +115,7 @@ def call(model, api_url, key, messages, max_tokens, effort=None):
         print("HTTP", e.code, e.read().decode()[:2000], file=sys.stderr)
         raise SystemExit(1)
     content = data["choices"][0]["message"].get("content") or ""
+    price.record_call(data.get("usage", {}), data.get("model") or model, api_url, "I")
     return content, data.get("usage", {})
 
 

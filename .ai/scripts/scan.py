@@ -14,6 +14,8 @@ import sys
 import urllib.error
 import urllib.request
 
+import price
+
 AI_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_FILE = os.path.join(AI_DIR, ".env")
 
@@ -145,6 +147,7 @@ def main():
     msg = data["choices"][0]["message"]
     content = msg.get("content") or ""
     usage = data.get("usage", {})
+    price.record_call(usage, data.get("model") or args.model, args.endpoint, "S")
 
     with open(out, "w") as f:
         f.write(content)
