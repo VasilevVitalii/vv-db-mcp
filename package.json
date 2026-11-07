@@ -1,6 +1,6 @@
 {
   "name": "vv-db-mcp",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "MCP server - work with MSSQL, Oracle, PostgreSQL, Firebird",
   "keywords": [
     "MCP",
