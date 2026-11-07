@@ -74,6 +74,18 @@ describe('runSql', () => {
     expect(r.warnings?.some((w) => w.includes('обрезан'))).toBe(true)
   })
 
+  it('maxRows-обрыв одиночного оператора не упоминает последующие операторы', async () => {
+    const db = fakeDb([
+      { kind: 'schema', schema: [{ name: 'n', kind: 'int' }] },
+      ...Array.from({ length: 6 }, (_, i) => ({ kind: 'row', row: { n: i } }) as TDbStreamEvent),
+      { kind: 'finish', error: { kind: 'aborted', message: 'aborted by maxRows' } },
+    ])
+    const r = await runSql(db, 'SELECT n FROM t', [], { timeoutMs: 5000, maxRows: 5, limits: LIMITS })
+    expect(r.resultSets[0].truncated).toBe(true)
+    expect(r.warnings?.some((w) => w.includes('последующие операторы'))).toBe(false)
+    expect(r.warnings?.some((w) => w.includes('результат обрезан по maxRows'))).toBe(true)
+  })
+
   it('maxRows-обрыв с writes-хвостом → ошибка outcomeUnknown', async () => {
     const db = fakeDb([
       { kind: 'schema', schema: [{ name: 'n', kind: 'int' }] },

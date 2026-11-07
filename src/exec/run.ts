@@ -5,7 +5,7 @@ import { throwDbError, ServerError } from '../errors/map.js'
 import { toDbParams } from './params.js'
 import { SerializeState, serializeRow } from './serialize.js'
 import { linkSignals } from './abort.js'
-import { firstStatementIsWrite, tailHasWrite } from './classify.js'
+import { firstStatementIsWrite, tailHasWrite, splitStatements } from './classify.js'
 
 export interface RunSqlOpts {
   connection?: string
@@ -183,7 +183,12 @@ export async function runSql(
   }
 
   if (abortedByMaxRows) {
-    warnings.push('результат обрезан по maxRows; последующие операторы батча могли не выполниться')
+    const stmts = splitStatements(sql).map((s) => s.trim()).filter((s) => s.length > 0)
+    warnings.push(
+      stmts.length > 1
+        ? 'результат обрезан по maxRows; последующие операторы батча могли не выполниться'
+        : 'результат обрезан по maxRows',
+    )
   }
 
   return {
