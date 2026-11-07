@@ -1,6 +1,6 @@
 {
   "name": "vv-db-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MCP server - work with MSSQL, Oracle, PostgreSQL, Firebird",
   "keywords": [
     "MCP",
@@ -45,7 +45,7 @@
     "node-firebird": "^2.19.1",
     "oracledb": "^26.0.0",
     "pg": "^8.23.1",
-    "vv-db-connection": "^1.1.29",
+    "vv-db-connection": "^1.4.2",
     "zod": "^4.6.7"
   },
   "allowScripts": {
