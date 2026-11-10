@@ -45,7 +45,7 @@
     "node-firebird": "^2.19.1",
     "oracledb": "^26.0.0",
     "pg": "^8.23.1",
-    "vv-db-connection": "^1.4.2",
+    "vv-db-connection": "^1.4.3",
     "zod": "^4.6.7"
   },
   "allowScripts": {
